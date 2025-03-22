@@ -1,0 +1,35 @@
+{
+  "id": 1,
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "john.doe@example.com",
+  "phone": "+1-555-1234",
+  "address": {
+    "street": "123 Elm St",
+    "city": "Somewhere",
+    "state": "CA",
+    "zip_code": "90001"
+  },
+  "dob": "1990-05-15",
+  "gender": "male",
+  "profile_picture_url": "https://example.com/images/john-doe.jpg",
+  "preferences": {
+    "newsletter_subscribed": true,
+    "notifications_enabled": false,
+    "theme": "dark"
+  },
+  "friends": [
+    {
+      "id": 2,
+      "first_name": "Jane",
+      "last_name": "Smith",
+      "email": "jane.smith@example.com"
+    },
+    {
+      "id": 3,
+      "first_name": "Alice",
+      "last_name": "Johnson",
+      "email": "alice.johnson@example.com"
+    }
+  ]
+}
