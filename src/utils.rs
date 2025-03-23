@@ -5,7 +5,7 @@ use warp::{Filter, Rejection, Reply};
 use warp::http::Response;
 use warp::hyper::Body;
 use crate::authentication::Unauthorized;
-use crate::models::{Endpoint, RateLimited};
+use crate::models::{Endpoint, NotFound, RateLimited};
 use crate::rate_limit::RateLimitTracker;
 
 pub async fn add_possible_delay(endpoint: &Endpoint) {
@@ -32,6 +32,12 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Rejection> {
         let response: Response<Body> = Response::builder()
             .status(429)
             .body(Body::from("Rate limit exceeded\n"))
+            .unwrap();
+        return Ok(response);
+    } else if err.find::<NotFound>().is_some() {
+        let response: Response<Body> = Response::builder()
+            .status(404)
+            .body(Body::from("Resource not found\n"))
             .unwrap();
         return Ok(response);
     }

@@ -1,5 +1,6 @@
 use warp::{http::StatusCode, test::request, Filter};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+use tokio::sync::Mutex;
 use std::time::{Duration};
 use tokio::time::Instant;
 use mockiapi::endpoint_handler::serve_dynamic_response;

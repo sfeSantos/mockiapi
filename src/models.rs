@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+use tokio::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use warp::reject::Reject;
 
@@ -10,6 +11,7 @@ pub struct Endpoint {
     pub method: Vec<String>,
     pub file: String,
     pub status_code: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub authentication: Option<String>,
     pub delay: Option<u64>,
     pub rate_limit: Option<RateLimit>,
@@ -24,6 +26,10 @@ pub struct RateLimit {
 #[derive(Debug)]
 pub struct RateLimited;
 impl Reject for RateLimited {}
+
+#[derive(Debug)]
+pub struct NotFound;
+impl Reject for NotFound {}
 
 #[derive(Deserialize)]
 pub struct AuthData {

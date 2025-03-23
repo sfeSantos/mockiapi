@@ -1,0 +1,102 @@
+[
+  {
+    "_id": "67e045860630f71938972db6",
+    "eyeColor": "blue",
+    "name": "Clayton Gates",
+    "gender": "male",
+    "email": "claytongates@orbixtar.com",
+    "phone": "+1 (874) 598-2528",
+    "address": "538 Legion Street, Spokane, Colorado, 4295",
+    "tags": [
+      "culpa",
+      "pariatur",
+      "exercitation",
+      "sint",
+      "sint",
+      "sunt",
+      "aute"
+    ],
+    "greeting": "Hello, Clayton Gates! You have 1 unread messages.",
+    "favoriteFruit": "banana"
+  },
+  {
+    "_id": "67e04586f61b0d20537dfffd",
+    "eyeColor": "brown",
+    "name": "Sullivan Velez",
+    "gender": "male",
+    "email": "sullivanvelez@orbixtar.com",
+    "phone": "+1 (952) 429-3795",
+    "address": "633 Moore Place, Adamstown, Wisconsin, 6428",
+    "tags": [
+      "quis",
+      "mollit",
+      "dolore",
+      "deserunt",
+      "nulla",
+      "duis",
+      "aliquip"
+    ],
+    "greeting": "Hello, Sullivan Velez! You have 1 unread messages.",
+    "favoriteFruit": "banana"
+  },
+  {
+    "_id": "67e04586aec4f64a91dfda20",
+    "eyeColor": "blue",
+    "name": "Juliette Spencer",
+    "gender": "female",
+    "email": "juliettespencer@orbixtar.com",
+    "phone": "+1 (928) 473-3643",
+    "address": "615 Pleasant Place, Veguita, New Hampshire, 581",
+    "tags": [
+      "irure",
+      "duis",
+      "cupidatat",
+      "ea",
+      "consectetur",
+      "commodo",
+      "Lorem"
+    ],
+    "greeting": "Hello, Juliette Spencer! You have 2 unread messages.",
+    "favoriteFruit": "strawberry"
+  },
+  {
+    "_id": "67e04586589e3c085fda8007",
+    "eyeColor": "blue",
+    "name": "Millie Kemp",
+    "gender": "female",
+    "email": "milliekemp@orbixtar.com",
+    "phone": "+1 (915) 434-3038",
+    "address": "566 Corbin Place, Hatteras, Wyoming, 5118",
+    "tags": [
+      "anim",
+      "in",
+      "ea",
+      "sunt",
+      "incididunt",
+      "et",
+      "sit"
+    ],
+    "greeting": "Hello, Millie Kemp! You have 8 unread messages.",
+    "favoriteFruit": "banana"
+  },
+  {
+    "_id": "67e04586ee96f6a223b5ed92",
+    "eyeColor": "brown",
+    "name": "Tonia Shields",
+    "gender": "female",
+    "email": "toniashields@orbixtar.com",
+    "phone": "+1 (883) 575-2463",
+    "address": "625 Stockton Street, Groveville, Oklahoma, 8653",
+    "tags": [
+      "ipsum",
+      "eu",
+      "labore",
+      "sunt",
+      "sint",
+      "enim",
+      "eu"
+    ],
+    "greeting": "Hello, Tonia Shields! You have 8 unread messages.",
+    "favoriteFruit": "apple"
+  }
+]

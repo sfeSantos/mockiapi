@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+use tokio::sync::Mutex;
 use warp::{Filter};
 use warp::http::header::AUTHORIZATION;
-use mockiapi::endpoint_handler::{list_endpoint, register_endpoint, serve_dynamic_response, with_endpoints};
+use mockiapi::endpoint_handler::{delete_endpoint, list_endpoint, register_endpoint, serve_dynamic_response, with_endpoints};
 use mockiapi::models::{Endpoints};
 use mockiapi::rate_limit::new_rate_limit;
 use mockiapi::utils::{handle_rejection, with_rate_limiter};
@@ -23,6 +24,11 @@ async fn main() {
         .and(with_endpoints(endpoints.clone()))
         .and_then(list_endpoint);
 
+    let delete = warp::delete()
+        .and(warp::path!("delete" / String))
+        .and(with_endpoints(endpoints.clone()))
+        .and_then(delete_endpoint);
+
     let dynamic_routes = warp::path::full()
         .and(warp::header::optional::<String>(AUTHORIZATION.as_str()))
         .and(with_endpoints(endpoints.clone()))
@@ -34,6 +40,7 @@ async fn main() {
     
     let routes = register
         .or(list)
+        .or(delete)
         .or(dynamic_routes)
         .or(static_files)
         .with(warp::cors().allow_any_origin());

@@ -25,6 +25,7 @@
     let password = '';
     let tokenData = '';
     let response_file;
+    let authentication = null;
 
     // Load all registered endpoints on mount
     onMount(() => {
@@ -74,8 +75,6 @@
 
     // Add authentication
     function handleAuthentication() {
-        let authentication = null;
-
         if (authType === 'basic') {
             authentication = {
                 username,
@@ -122,14 +121,15 @@
     function resetForm() {
         path = '';
         methods = { GET: true, POST: false, PUT: false, DELETE: false };
-        status_code = 200;
-        delay = 0;
+        status_code = null;
+        delay = null;
         rate_limit = '';
         authType = 'none';
         username = '';
         password = '';
         tokenData = '';
         response_file = null;
+        authentication = null;
 
         // Reset the file input (needs to be handled separately in Svelte)
         const fileInput = document.getElementById('response-file');
@@ -162,7 +162,7 @@
             showLoader(true);
 
             try {
-                const response = await fetch(`/admin/endpoints/${encodeURIComponent(path)}`, {
+                const response = await fetch(`/delete/${encodeURIComponent(path)}`, {
                     method: 'DELETE'
                 });
 

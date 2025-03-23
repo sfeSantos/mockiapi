@@ -2,17 +2,21 @@
 name = "mockiapi"
 version = "0.1.0"
 edition = "2024"
+authors = ["Eduardo Santos <eduf.santos@mail.com>"]
+repository = "https://github.com/sfeSantos/mockserver"
+description = "A lightweight, file-based mock API server written in Rust."
+license = "MIT OR Apache-2.0"
+keywords = ["mock", "rest", "api", "mockserver"]
+categories = ["development-tools::testing", "web-programming::http-server"]
 
 [dependencies]
 futures = "0.3.31"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tokio = { version = "1.44.1", features = ["full"] }
-tokio-stream = "0.1.17"
 uuid = { version = "1.16.0", features = ["v4"] }
 warp = "0.3.7"
 bytes = "1.10.1"
 log = "0.4.26"
-tracing = "0.1.41"
-base64 = "0.21.7"
-serde_yaml = "0.9.34+deprecated"
+base64 = "0.22.1"
+urlencoding = "2.1.3"
