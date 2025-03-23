@@ -1,9 +1,9 @@
 [package]
 name = "mockiapi"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["Eduardo Santos <eduf.santos@mail.com>"]
-repository = "https://github.com/sfeSantos/mockserver"
+repository = "https://github.com/sfeSantos/mockiapi"
 description = "A lightweight, file-based mock API server written in Rust."
 license = "MIT OR Apache-2.0"
 keywords = ["mock", "rest", "api", "mockserver"]
