@@ -102,4 +102,3 @@ Dynamic Mock API consists of a Rust backend and a Svelte frontend. Don't worry i
    ```
 4. **Access the application:**
 - Open your browser and go to http://localhost:3001
-- The backend API will be running on http://localhost:3030 by default
