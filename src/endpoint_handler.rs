@@ -15,7 +15,7 @@ use crate::rate_limit::{check_rate_limit, RateLimitTracker};
 use crate::utils::add_possible_delay;
 
 pub async fn register_endpoint(form: warp::multipart::FormData, endpoints: Endpoints) -> Result<impl warp::Reply, warp::Rejection> {
-    let mut form = form;
+    let mut form = form.into_stream();
     let mut path = None;
     let mut methods = None;
     let mut status_code = None;
@@ -25,29 +25,26 @@ pub async fn register_endpoint(form: warp::multipart::FormData, endpoints: Endpo
     let mut delay = None;
     let mut rate_limit = None;
 
-    while let Some(part) = form.next().await {
-        let part: Part = part.unwrap();
-        let field_name = part.name().to_string();
-
-        if field_name == "path" {
+    while let Some(Ok(part)) = form.next().await {
+        if part.name() == "path" {
             let value = part_to_string(part).await?;
             path = Some(value);
-        } else if field_name == "methods" {
+        } else if part.name() == "methods" {
             let value = part_to_string(part).await?;
             methods = Some(value);
-        } else if field_name == "status_code" {
+        } else if part.name() == "status_code" {
             let value = part_to_string(part).await?;
             status_code = Some(value.parse::<u16>().unwrap_or(200));
-        } else if field_name == "file" {
+        } else if part.name() == "file" {
             file_name = Some(format!("uploads/{}.json", Uuid::new_v4()));
             file_data = part_to_bytes(part).await?;
-        } else if field_name == "authentication" {
+        } else if part.name() == "authentication" {
             let value = part_to_string(part).await?;
             authentication =  if value == "null" { None } else { Some(value) };
-        } else if field_name == "delay" {
+        } else if part.name() == "delay" {
             let value = part_to_string(part).await?;
             delay = Some(value.parse::<u64>().ok());
-        } else if field_name == "rate_limit" {
+        } else if part.name() == "rate_limit" {
             let value = part_to_string(part).await?;
 
             if !value.is_empty() || value.contains('/') {
