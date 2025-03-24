@@ -2,8 +2,6 @@
     import { onMount } from 'svelte';
 
     // State variables
-    let endpointForm;
-    let endpointsList;
     let endpointsLoader;
     let endpoints = [];
     let showBasicAuthFields = false;
@@ -229,7 +227,7 @@
     <main>
         <section class="registration-form">
             <h2>Register New Endpoint</h2>
-            <form id="endpoint-form" on:submit={handleSubmit} bind:this={endpointForm}>
+            <form id="endpoint-form" on:submit={handleSubmit}>
                 <div class="form-group">
                     <label for="path">Endpoint Path:</label>
                     <input type="text" id="path" name="path" placeholder="/api/resource" required bind:value={path}>
@@ -332,7 +330,7 @@
                         <th>Actions</th>
                     </tr>
                     </thead>
-                    <tbody id="endpoints-list" bind:this={endpointsList}>
+                    <tbody id="endpoints-list">
                     {#if endpoints.length === 0}
                         <tr>
                             <td colspan="8" class="empty-state">
