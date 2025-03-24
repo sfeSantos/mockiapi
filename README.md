@@ -79,26 +79,16 @@ Dynamic Mock API consists of a Rust backend and a Svelte frontend. Don't worry i
 
 ### Building and Running the Application
 
-1. **Clone the repository**:
+1. **Linux / Mac**:
    ```bash
-   git clone https://github.com/yourusername/mockiapi.git
+   chmod +x init.sh
    cd mockiapi
+   ./init.sh
    ```
-2. **Build and run the backend**
+2. **Windows**
    ```bash
-   # Compile and run the Rust backend
-   cargo run --release
+   double-click init.bat
    ```
-3. **Build and run the frontend**
-   ```bash
-   # Navigate to the frontend directory
-    cd frontend
-    
-    # Install dependencies
-    npm install
-    
-    # Start the development server
-    npm run dev
-   ```
-4. **Access the application:**
+
+3. **Access the application:**
 - Open your browser and go to http://localhost:3001
