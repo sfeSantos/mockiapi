@@ -3,9 +3,10 @@ use std::sync::{Arc};
 use tokio::sync::Mutex;
 use warp::{Filter};
 use warp::http::header::AUTHORIZATION;
-use mockiapi::endpoint_handler::{delete_endpoint, list_endpoint, register_endpoint, serve_dynamic_response, with_endpoints};
 use mockiapi::models::{Endpoints};
-use mockiapi::rate_limit::new_rate_limit;
+use mockiapi::middlewares::rate_limit::new_rate_limit;
+use mockiapi::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint, with_endpoints};
+use mockiapi::routes::dynamic_response::serve_dynamic_response;
 use mockiapi::utils::{handle_rejection, with_rate_limiter};
 
 #[tokio::main]
@@ -50,13 +51,18 @@ async fn main() {
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
     
-    let static_files = warp::fs::dir("frontend/dist");
+    let static_files = warp::fs::dir("frontend/dist")
+        .with(warp::log("static_files"));
+
+    let spa_fallback = warp::any()
+        .map(|| warp::reply::html(include_str!("../frontend/dist/index.html")));
     
     let routes = register
         .or(list)
         .or(delete)
         .or(dynamic_routes)
         .or(static_files)
+        .or(spa_fallback)
         .with(warp::cors().allow_any_origin())
         .with(log);
     
