@@ -10,8 +10,22 @@ use mockiapi::utils::{handle_rejection, with_rate_limiter};
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let endpoints: Endpoints = Arc::new(Mutex::new(HashMap::new()));
     let rate_limiter = new_rate_limit();
+
+    let log = warp::log::custom(|info| {
+        log::info!("{} - {} {} {} [{}] {:?}",
+            info.remote_addr()
+                .map(|addr| addr.to_string())
+                .unwrap_or_else(|| "unknown".to_string()),
+            info.method(),
+            info.path(),
+            info.status(),
+            info.elapsed().as_millis(),
+            info.request_headers()
+        );
+    });
     
     let register = warp::post()
         .and(warp::path!("register"))
@@ -43,7 +57,8 @@ async fn main() {
         .or(delete)
         .or(dynamic_routes)
         .or(static_files)
-        .with(warp::cors().allow_any_origin());
+        .with(warp::cors().allow_any_origin())
+        .with(log);
     
     println!(".: Server running at http://localhost:3001");
     warp::serve(routes).run(([127, 0, 0, 1], 3001)).await;

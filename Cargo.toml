@@ -1,6 +1,6 @@
 [package]
 name = "mockiapi"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 authors = ["Eduardo Santos <eduf.santos@mail.com>"]
 repository = "https://github.com/sfeSantos/mockiapi"
@@ -20,3 +20,4 @@ bytes = "1.10.1"
 log = "0.4.26"
 base64 = "0.22.1"
 urlencoding = "2.1.3"
+env_logger = "0.11.7"
