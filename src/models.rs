@@ -23,6 +23,7 @@ pub struct RateLimit {
     pub window_ms: u64,  // Time window in milliseconds
 }
 
+
 #[derive(Debug)]
 pub struct RateLimited;
 impl Reject for RateLimited {}
@@ -31,9 +32,29 @@ impl Reject for RateLimited {}
 pub struct NotFound;
 impl Reject for NotFound {}
 
+
+#[derive(Debug)]
+pub struct Unauthorized;
+impl Reject for Unauthorized {}
+
+#[derive(Debug)]
+pub struct InvalidMultipart;
+impl Reject for InvalidMultipart {}
+
+#[derive(Debug)]
+pub struct FileError;
+impl Reject for FileError {}
+
+#[derive(Debug)]
+pub struct Utf8Error;
+impl Reject for Utf8Error {}
+
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthData {
     pub(crate) username: Option<String>,
     pub(crate) password: Option<String>,
-    pub(crate) tokenData: Option<String>,
+    pub(crate) token_data: Option<String>,
 }
+
+pub struct MultipartHandler;

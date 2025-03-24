@@ -3,9 +3,9 @@ use std::sync::{Arc};
 use tokio::sync::Mutex;
 use std::time::{Duration};
 use tokio::time::Instant;
-use mockiapi::endpoint_handler::serve_dynamic_response;
 use mockiapi::models::{Endpoint, RateLimit};
-use mockiapi::rate_limit::{new_rate_limit};
+use mockiapi::middlewares::rate_limit::{new_rate_limit};
+use mockiapi::routes::dynamic_response::serve_dynamic_response;
 use mockiapi::utils::handle_rejection;
 
 #[tokio::test]
@@ -17,7 +17,8 @@ async fn test_non_existent_endpoint() {
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
-        .and_then(serve_dynamic_response);
+        .and_then(serve_dynamic_response)
+        .recover(handle_rejection);
 
     let res = request()
         .method("GET")

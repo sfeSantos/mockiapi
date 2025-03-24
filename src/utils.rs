@@ -4,9 +4,8 @@ use log::info;
 use warp::{Filter, Rejection, Reply};
 use warp::http::Response;
 use warp::hyper::Body;
-use crate::authentication::Unauthorized;
-use crate::models::{Endpoint, NotFound, RateLimited};
-use crate::rate_limit::RateLimitTracker;
+use crate::models::{Endpoint, NotFound, RateLimited, Unauthorized};
+use crate::middlewares::rate_limit::RateLimitTracker;
 
 pub async fn add_possible_delay(endpoint: &Endpoint) {
     if let Some(delay) = endpoint.delay {

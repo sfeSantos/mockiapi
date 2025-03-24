@@ -1,11 +1,5 @@
 use base64::{Engine as _, engine::{general_purpose}};
-use warp::reject::Reject;
 use crate::models::AuthData;
-
-#[derive(Debug)]
-pub struct Unauthorized;
-
-impl Reject for Unauthorized {}
 
 /// Function to validate the authorization based on the `auth_type` and `auth_data`
 pub fn validate_auth(auth_data: Option<String>, auth_header: Option<String>) -> bool {
@@ -50,7 +44,7 @@ fn validate_basic_auth(auth_data: Option<String>, header: String) -> bool {
 fn validate_bearer_token(auth_data: Option<String>, header: String) -> bool {
     if let Some(auth_data) = auth_data {
         if let Ok(auth_struct) = serde_json::from_str::<AuthData>(&auth_data) {
-            if let Some(expected_token) = auth_struct.tokenData {
+            if let Some(expected_token) = auth_struct.token_data {
                 let token = header.trim_start_matches("Bearer ").to_string();
                 return token == expected_token;
             }
