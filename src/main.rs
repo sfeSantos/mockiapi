@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc};
+use log::info;
 use tokio::sync::Mutex;
 use warp::{Filter};
 use warp::http::header::AUTHORIZATION;
@@ -16,7 +17,7 @@ async fn main() {
     let rate_limiter = new_rate_limit();
 
     let log = warp::log::custom(|info| {
-        log::info!("{} - {} {} {} [{}] {:?}",
+        info!("{} - {} {} {} [{}] {:?}",
             info.remote_addr()
                 .map(|addr| addr.to_string())
                 .unwrap_or_else(|| "unknown".to_string()),
@@ -53,16 +54,12 @@ async fn main() {
     
     let static_files = warp::fs::dir("frontend/dist")
         .with(warp::log("static_files"));
-
-    let spa_fallback = warp::any()
-        .map(|| warp::reply::html(include_str!("../frontend/dist/index.html")));
     
     let routes = register
         .or(list)
         .or(delete)
-        .or(dynamic_routes)
         .or(static_files)
-        .or(spa_fallback)
+        .or(dynamic_routes)
         .with(warp::cors().allow_any_origin())
         .with(log);
     
