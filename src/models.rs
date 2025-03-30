@@ -15,6 +15,7 @@ pub struct Endpoint {
     pub authentication: Option<String>,
     pub delay: Option<u64>,
     pub rate_limit: Option<RateLimit>,
+    pub with_dynamic_vars: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
