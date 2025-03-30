@@ -17,6 +17,7 @@ impl MultipartHandler {
         let mut authentication = None;
         let mut delay = None;
         let mut rate_limit = None;
+        let mut with_dynamic_vars = None;
         let mut parts = form.into_stream();
         
         while let Some(Ok(part)) = parts.next().await {
@@ -42,6 +43,10 @@ impl MultipartHandler {
                             window_ms: vals[1].parse::<u64>().unwrap_or(0),
                         });
                     }
+                },
+                "with_dynamic_vars" => {
+                    with_dynamic_vars = Some(Self::part_to_string(part).await?
+                        .parse::<bool>().unwrap_or(false));
                 }
                 _ => {}
             }
@@ -65,6 +70,7 @@ impl MultipartHandler {
             authentication,
             delay,
             rate_limit,
+            with_dynamic_vars,
         };
 
         endpoints.lock().await.insert(path.clone(), endpoint);

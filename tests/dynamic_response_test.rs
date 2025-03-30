@@ -5,7 +5,7 @@ use std::time::{Duration};
 use tokio::time::Instant;
 use mockiapi::models::{Endpoint, RateLimit};
 use mockiapi::middlewares::rate_limit::{new_rate_limit};
-use mockiapi::routes::dynamic_response::serve_dynamic_response;
+use mockiapi::routes::dynamic_response::{serve_dynamic_response};
 use mockiapi::utils::handle_rejection;
 
 #[tokio::test]
@@ -41,6 +41,7 @@ async fn test_valid_request_without_auth() {
             rate_limit: None,
             authentication: None,
             delay: None,
+            with_dynamic_vars: None,
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -73,6 +74,7 @@ async fn test_valid_request_with_basic_auth() {
             rate_limit: None,
             authentication: Some(String::from("{\"username\": \"user\", \"password\": \"pass\"}")),
             delay: None,
+            with_dynamic_vars: None,
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -106,6 +108,7 @@ async fn test_invalid_authentication() {
             rate_limit: None,
             authentication: Some(String::from("{\"username\": \"user1\", \"password\": \"password1\"}")),
             delay: None,
+            with_dynamic_vars: None,
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -140,6 +143,7 @@ async fn test_valid_request_with_bearer_auth() {
             rate_limit: None,
             authentication: Some(String::from("{\"tokenData\": \"SOME_LONG_TOKEN\"}")),
             delay: None,
+            with_dynamic_vars: None,
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -176,6 +180,7 @@ async fn test_rate_limit_exceeded() {
             }), // Allow only one request
             authentication: None,
             delay: None,
+            with_dynamic_vars: None,
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -217,6 +222,7 @@ async fn test_request_with_delay() {
             rate_limit: None,
             authentication: None,
             delay: Some(2000), // 2 seconds delay
+            with_dynamic_vars: None,
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -239,3 +245,36 @@ async fn test_request_with_delay() {
     assert_eq!(res.status(), StatusCode::OK);
     assert!(elapsed >= Duration::from_millis(2000)); // Ensure delay was applied
 }
+
+/*#[tokio::test]
+async fn test_extract_params_from_request() {
+    let mut endpoints_map = std::collections::HashMap::new();
+    endpoints_map.insert(
+        "/api/user/123/item/456?id=789&name=John".to_string(),
+        Endpoint {
+            method: vec!["GET".to_string()],
+            file: "uploads/file.json".to_string(),
+            status_code: Some(200),
+            rate_limit: None,
+            authentication: None,
+            delay: None,
+            with_dynamic_vars: Some(true),
+        },
+    );
+    let endpoints = Arc::new(Mutex::new(endpoints_map));
+    let rate_limiter = new_rate_limit();
+
+    let filter = warp::path::full()
+        .and(warp::any().map(|| None))
+        .and(warp::any().map(move || endpoints.clone()))
+        .and(warp::any().map(move || rate_limiter.clone()))
+        .and_then(serve_dynamic_response);
+
+    let res = request()
+        .method("GET")
+        .path("/api/user/123/item/456?id=789&name=John")
+        .reply(&filter)
+        .await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+}*/
