@@ -46,6 +46,10 @@ async fn main() {
         .and_then(delete_endpoint);
 
     let dynamic_routes = warp::path::full()
+        .and(warp::query::<HashMap<String, String>>()
+            .map(Some) // Wrap in Some()
+            .or(warp::any().map(|| None)) // Use None when no query params
+            .unify())
         .and(warp::header::optional::<String>(AUTHORIZATION.as_str()))
         .and(with_endpoints(endpoints.clone()))
         .and(with_rate_limiter(rate_limiter.clone()))
