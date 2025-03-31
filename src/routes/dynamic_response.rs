@@ -9,17 +9,20 @@ use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
 use crate::models::{Endpoints, NotFound, Unauthorized};
 use crate::middlewares::rate_limit::{check_rate_limit, RateLimitTracker};
-use crate::utils::add_possible_delay;
+use crate::utils::{add_possible_delay, reconstruct_full_url};
 
 pub async fn serve_dynamic_response(
     path: FullPath,
+    query_params: Option<HashMap<String, String>>,
     auth_header: Option<String>,
     endpoints: Endpoints,
     rate_limiter: RateLimitTracker,
 ) -> Result<impl Reply, Rejection> {
+    let full_url = reconstruct_full_url(path.as_str(), &query_params);
+    
     let endpoint_data = {
         let endpoints_map = endpoints.lock().await;
-        endpoints_map.get(path.as_str()).cloned()
+        endpoints_map.get(&full_url).cloned()
     };
 
     if let Some(endpoint) = endpoint_data {
@@ -38,8 +41,8 @@ pub async fn serve_dynamic_response(
         match tokio::fs::read_to_string(&endpoint.file).await {
             Ok(mut data) => {
                 // Apply dynamic variable replacement if the flag is true
-                if endpoint.with_dynamic_vars.unwrap() {
-                    let params = get_params_from_request(&path);
+                if endpoint.with_dynamic_vars.unwrap_or(false) {
+                    let params = get_params_from_request(full_url.as_str());
                     data = dynamic_vars::replace_variables(&data, &params);
                 }
 
@@ -58,31 +61,30 @@ pub async fn serve_dynamic_response(
 }
 
 /// A helper function to extract parameters (example: from query or path)
-fn get_params_from_request(path: &FullPath) -> HashMap<String, String> {
+fn get_params_from_request(path: &str) -> HashMap<String, String> {
     let mut params = HashMap::new();
 
-    // Extract query parameters (e.g., ?key=value)
-    if let Ok(url) = Url::parse(&format!("http://localhost:3001{}", path.as_str())) {
-        for (key, value) in url.query_pairs() {
-            params.insert(key.to_string(), value.to_string());
-        }
+    let full_url = format!("http://localhost:3001{}", path);
+    let url = Url::parse(&full_url).expect("Failed to parse URL");
+
+    for (key, value) in url.query_pairs() {
+        params.insert(key.to_string(), value.to_string());
     }
 
-    // Regex for extracting path parameters (e.g., /api/user/{id}/item/{itemId})
-    // We expect the path pattern to have dynamic parts like {id}, {itemId}
-    let re = Regex::new(r"\{(\w+)}").unwrap();
-    let path_segments: Vec<&str> = path.as_str().split('/').collect();
+    // Regex to match versioning patterns (e.g., "v1", "v2", "v10", etc.)
+    let version_regex = Regex::new(r"^v\d+$").unwrap();
 
-    // Iterate through the regex matches and extract path parameters
-    let path_iter = path_segments.iter();
-    for (i, segment) in path_iter.enumerate() {
-        if let Some(caps) = re.captures(segment) {
-            let param_name = &caps[1];
-            if let Some(value) = path_segments.get(i + 1) {
-                params.insert(param_name.to_string(), value.to_string());
-            }
-        }
+    // Extract path segments, filtering out "api" and version segments
+    let segments: Vec<&str> = url
+        .path()
+        .split('/')
+        .filter(|s| !s.is_empty() && *s != "api" && !version_regex.is_match(s))
+        .collect();
+
+    let mut iter = segments.iter();
+    while let (Some(key), Some(value)) = (iter.next(), iter.next()) {
+        params.insert(key.to_string(), value.to_string());
     }
-    
+
     params
 }
