@@ -1,6 +1,6 @@
 # Dynamic Mock API 🚀
 
-A flexible, feature-rich mock API server with an intuitive frontend that simplifies development and testing across any programming language.
+A powerful and easy-to-use mock API server that allows you to define endpoints, return custom JSON responses, and simulate real-world API behavior.
 
 ## Features
 
@@ -28,6 +28,9 @@ Automatically log all requests made to your mock endpoints for debugging and ana
 ### 🌐 Cross-Platform Compatibility
 Works with applications built in any programming language - if it can make HTTP requests, it can work with Dynamic Mock API.
 
+## **✨ Dynamic Response Variables**
+Use placeholders in JSON responses that get replaced at runtime based on request parameters. This allows for **customized responses** based on URL path, query parameters, or request headers.
+
 ## Why Choose Dynamic Mock API?
 
 When developing applications that rely on external APIs, you need a way to test your integration without relying on actual endpoints. Dynamic Mock API solves this challenge by providing a flexible, feature-rich solution that outshines existing alternatives:
@@ -54,12 +57,6 @@ When developing applications that rely on external APIs, you need a way to test 
 2. Access the web interface at `http://localhost:3000` (or your configured port)
 3. Register your first endpoint by providing a path and JSON response
 4. Start making requests to your mock endpoint
-
-## Example Usage
-
-- Register an endpoint at /api/users that returns a list of users
-- Point your application to http://localhost:3000/api/users
-- Dynamic Mock API will return your specified JSON response
 
 ## Installation
 
@@ -92,3 +89,88 @@ Dynamic Mock API consists of a Rust backend and a Svelte frontend. Don't worry i
 
 3. **Access the application:**
 - Open your browser and go to http://localhost:3001
+
+# Examples
+
+### **1️⃣ Simple GET Request**
+Create a JSON file (`hello.json`)
+```json
+{
+  "message": "Hello, world!"
+}
+```
+### **2️⃣ Register an Endpoint**
+Define an endpoint that uses dynamic variables:
+
+| Path         | Response File        |
+|--------------|----------------------|
+| `/api/hello` | `hello.json` |       |
+
+### **1️⃣ Simple POST Request with custom Http Status**
+If you want, you can provide a [dynamic json](#dynamic-vars-usage) to as return. But is not mandatory
+
+| Path        | Response File |Method| Status Copde       |
+|-------------|---------------|------|--------------------|
+| `/api/save` | `optional`    | `POST`  | `202 (or any other)`  |
+
+## Dynamic Vars usage
+
+### **1️⃣ Define Your Response (JSON File)**
+Create a JSON file (`user-response.json`) with placeholders:
+```json
+{
+  "message": "Hello, {{name}}!",
+  "user_id": "{{id}}",
+  "requested_item": "{{item}}",
+  "timestamp": "{{timestamp}}"
+}
+```
+### **2️⃣ Register an Endpoint**
+Define an endpoint that uses dynamic variables:
+
+| Path                         | Response File            | With Dynamic Vars |  
+|------------------------------|--------------------------|-------------------|  
+| `/api/user/{id}/item/{item}?name={name}` | `uploads/user-response.json` | ✅ |
+
+### **3️⃣ Make a Request**
+Request:
+```http
+GET /api/user/123/item/laptop?name=John
+```
+### **4️⃣ MockiAPI Responds Dynamically**  
+Response:
+```json
+{
+  "message": "Hello, John!",
+  "user_id": "123",
+  "requested_item": "laptop",
+  "timestamp": "2025-03-31T12:00:00Z"
+}
+```
+
+### **1️⃣ Update with Delay**
+
+| Path                | Response File | Method | Status Copde | Delay       |
+|---------------------|---------------|--------|--------------|-------------|
+| `/api/delay/update` | `optional`    | `PUT`  | `optional`   | `3000 (ms)` |
+
+### **1️⃣ GET Request with Rate Limiting**
+Register a `GET` endpoint that enforces rate limiting (max 5 requests per minute).
+
+```json
+{
+  "id": "1ds",
+  "key": "value"
+}
+```
+### **2️⃣ Register an Endpoint**
+
+| Path         | Response File | Method | Status Copde | Rate Limit |
+|--------------|---------------|--------|--------------|------------|
+| `/api/limited` | `optional`    | `GET`  | `optional`   | `10/60000` |
+
+### **3️⃣ Make a Request**
+Request:
+```http
+GET /api/limited
+```
