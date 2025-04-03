@@ -53,6 +53,9 @@ async fn main() {
         .and(warp::header::optional::<String>(AUTHORIZATION.as_str()))
         .and(with_endpoints(endpoints.clone()))
         .and(with_rate_limiter(rate_limiter.clone()))
+        .and(warp::body::bytes().map(Some)
+            .or(warp::any().map(|| None)) // Use None when no query params
+            .unify())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
     

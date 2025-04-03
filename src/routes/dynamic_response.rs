@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use regex::Regex;
+use serde_json::Value;
 use warp::{reply, Rejection, Reply};
 use warp::http::header::CONTENT_TYPE;
 use warp::http::StatusCode;
 use warp::path::FullPath;
+use warp::hyper::body::Bytes;
 use url::Url;
 use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
@@ -17,6 +19,7 @@ pub async fn serve_dynamic_response(
     auth_header: Option<String>,
     endpoints: Endpoints,
     rate_limiter: RateLimitTracker,
+    body: Option<Bytes>,
 ) -> Result<impl Reply, Rejection> {
     let full_url = reconstruct_full_url(path.as_str(), &query_params);
     
@@ -42,7 +45,14 @@ pub async fn serve_dynamic_response(
             Ok(mut data) => {
                 // Apply dynamic variable replacement if the flag is true
                 if endpoint.with_dynamic_vars.unwrap_or(false) {
-                    let params = get_params_from_request(full_url.as_str());
+                    let params: HashMap<String, String>;
+                    
+                    if let Some(body) = body {
+                        params = get_body_from_request(body);
+                    } else {
+                        params = get_params_from_request(full_url.as_str());
+                    }
+                    
                     data = dynamic_vars::replace_variables(&data, &params);
                 }
 
@@ -86,5 +96,22 @@ fn get_params_from_request(path: &str) -> HashMap<String, String> {
         params.insert(key.to_string(), value.to_string());
     }
 
+    params
+}
+
+fn get_body_from_request(body: Bytes) -> HashMap<String, String> {
+    let mut params = HashMap::new();
+    
+    if let Ok(json) = serde_json::from_slice::<Value>(&body) {
+        if let Some(obj) = json.as_object() {
+            for (key, value) in obj {
+                if let Some(val_str) = value.as_str() {
+                    params.insert(key.clone(), val_str.to_string());
+                } else {
+                    params.insert(key.clone(), value.to_string());
+                }
+            }
+        }
+    }
     params
 }

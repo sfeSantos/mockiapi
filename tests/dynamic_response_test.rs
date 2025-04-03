@@ -3,7 +3,7 @@ use warp::{http::StatusCode, test::request, Filter};
 use std::sync::{Arc};
 use tokio::sync::Mutex;
 use std::time::{Duration};
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio::time::Instant;
 use mockiapi::models::{Endpoint, RateLimit};
 use mockiapi::middlewares::rate_limit::{new_rate_limit};
@@ -12,7 +12,7 @@ use mockiapi::utils::handle_rejection;
 
 #[tokio::test]
 async fn test_non_existent_endpoint() {
-    let endpoints = Arc::new(Mutex::new(std::collections::HashMap::new()));
+    let endpoints = Arc::new(Mutex::new(HashMap::new()));
     let rate_limiter = new_rate_limit();
     
     let filter = warp::path::full()
@@ -20,6 +20,7 @@ async fn test_non_existent_endpoint() {
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -34,7 +35,7 @@ async fn test_non_existent_endpoint() {
 
 #[tokio::test]
 async fn test_valid_request_without_auth() {
-    let mut endpoints_map = std::collections::HashMap::new();
+    let mut endpoints_map = HashMap::new();
     endpoints_map.insert(
         "/public".to_string(),
         Endpoint {
@@ -55,6 +56,7 @@ async fn test_valid_request_without_auth() {
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response);
 
     let res = request()
@@ -68,7 +70,7 @@ async fn test_valid_request_without_auth() {
 
 #[tokio::test]
 async fn test_valid_request_with_basic_auth() {
-    let mut endpoints_map = std::collections::HashMap::new();
+    let mut endpoints_map = HashMap::new();
     endpoints_map.insert(
         "/protected".to_string(),
         Endpoint {
@@ -89,6 +91,7 @@ async fn test_valid_request_with_basic_auth() {
         .and(warp::any().map(|| Some("Basic dXNlcjpwYXNz".to_string()))) // Base64 for user:pass
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response);
 
     let res = request()
@@ -103,7 +106,7 @@ async fn test_valid_request_with_basic_auth() {
 
 #[tokio::test]
 async fn test_invalid_authentication() {
-    let mut endpoints_map = std::collections::HashMap::new();
+    let mut endpoints_map = HashMap::new();
     endpoints_map.insert(
         "/protected".to_string(),
         Endpoint {
@@ -124,6 +127,7 @@ async fn test_invalid_authentication() {
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -139,7 +143,7 @@ async fn test_invalid_authentication() {
 
 #[tokio::test]
 async fn test_valid_request_with_bearer_auth() {
-    let mut endpoints_map = std::collections::HashMap::new();
+    let mut endpoints_map = HashMap::new();
     endpoints_map.insert(
         "/secure".to_string(),
         Endpoint {
@@ -160,6 +164,7 @@ async fn test_valid_request_with_bearer_auth() {
         .and(warp::any().map(|| Some("Bearer SOME_LONG_TOKEN".to_string())))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response);
 
     let res = request()
@@ -174,7 +179,7 @@ async fn test_valid_request_with_bearer_auth() {
 
 #[tokio::test]
 async fn test_rate_limit_exceeded() {
-    let mut endpoints_map = std::collections::HashMap::new();
+    let mut endpoints_map = HashMap::new();
     endpoints_map.insert(
         "/rate-limited".to_string(),
         Endpoint {
@@ -198,6 +203,7 @@ async fn test_rate_limit_exceeded() {
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
     // First request should pass
@@ -220,7 +226,7 @@ async fn test_rate_limit_exceeded() {
 
 #[tokio::test]
 async fn test_request_with_delay() {
-    let mut endpoints_map = std::collections::HashMap::new();
+    let mut endpoints_map = HashMap::new();
     endpoints_map.insert(
         "/delayed".to_string(),
         Endpoint {
@@ -244,6 +250,7 @@ async fn test_request_with_delay() {
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response);
 
     let start_time = Instant::now();
@@ -260,7 +267,7 @@ async fn test_request_with_delay() {
 
 #[tokio::test]
 async fn test_extract_params_from_request() {
-    let mut endpoints_map = std::collections::HashMap::new();
+    let mut endpoints_map = HashMap::new();
     endpoints_map.insert(
         "/api/user/123/item/456?id=789&name=John".to_string(),
         Endpoint {
@@ -281,12 +288,67 @@ async fn test_extract_params_from_request() {
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
     let res = request()
         .method("GET")
         .path("/api/user/123/item/456?id=789&name=John")
+        .reply(&filter)
+        .await;
+
+    // Convert response body to string
+    let body_str = String::from_utf8(res.body().to_vec()).unwrap();
+    let json_body: Value = serde_json::from_str(&body_str).expect("Response is not valid JSON");
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(json_body["user"], "123");
+    assert_eq!(json_body["item"], "456");
+    assert_eq!(json_body["id"], "789");
+    assert_eq!(json_body["name"], "John");
+}
+
+#[tokio::test]
+async fn test_extract_params_from_request_body() {
+    let mut endpoints_map = HashMap::new();
+    endpoints_map.insert(
+        "/api/user".to_string(),
+        Endpoint {
+            method: vec!["POST".to_string()],
+            file: "uploads/dynamic_vars.json".to_string(),
+            status_code: Some(200),
+            rate_limit: None,
+            authentication: None,
+            delay: None,
+            with_dynamic_vars: Some(true),
+        },
+    );
+    let endpoints = Arc::new(Mutex::new(endpoints_map));
+    let rate_limiter = new_rate_limit();
+
+    let filter = warp::path::full()
+        .and(warp::query::<HashMap<String, String>>().map(Some))
+        .and(warp::any().map(|| None))
+        .and(warp::any().map(move || endpoints.clone()))
+        .and(warp::any().map(move || rate_limiter.clone()))
+        .and(warp::body::bytes().map(Some)
+            .or(warp::any().map(|| None)) // Use None when no query params
+            .unify())
+        .and_then(serve_dynamic_response)
+        .recover(handle_rejection);
+
+    let request_body = json!({
+        "id": "789",
+        "name": "John",
+        "user": "123",
+        "item": "456"
+    });
+
+    let res = request()
+        .method("POST")
+        .path("/api/user")
+        .json(&request_body)
         .reply(&filter)
         .await;
 
