@@ -181,6 +181,7 @@ GET /api/limited
 ### 📘 GraphQL Simulation Example
 
 ✅ How It Works:
+
 Send a POST request with a GraphQL query or mutation string, like:
 
 ```json
