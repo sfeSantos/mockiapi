@@ -24,6 +24,7 @@
     let tokenData = '';
     let response_file;
     let authentication = null;
+    let isGraphQL = false;
 
     // Load all registered endpoints on mount
     onMount(() => {
@@ -40,7 +41,8 @@
         formData.append("status_code", status_code);
         formData.append("delay", delay);
         formData.append("rate_limit", rate_limit);
-        formData.append("authentication", handleAuthentication())
+        formData.append("authentication", handleAuthentication());
+        formData.append("isGraphQL", isGraphQL.toString());
 
         if (response_file) {
             formData.append('file', response_file);
@@ -128,6 +130,7 @@
         tokenData = '';
         response_file = null;
         authentication = null;
+        isGraphQL = false;
 
         // Reset the file input (needs to be handled separately in Svelte)
         const fileInput = document.getElementById('response-file');
@@ -253,6 +256,14 @@
                             <input type="checkbox" id="delete" name="methods" value="DELETE" bind:checked={methods.DELETE}>
                             <label for="delete">DELETE</label>
                         </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="isGraphQL">GraphQL:</label>
+                    <div>
+                        <input type="checkbox" id="isGraphQL" name="isGraphQL" value="true" bind:checked={isGraphQL}>
+                        <label for="isGraphQL">Enable GraphQL support</label>
                     </div>
                 </div>
 

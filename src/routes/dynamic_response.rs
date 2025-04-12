@@ -1,9 +1,10 @@
 use std::collections::HashMap;
-use warp::{reply, Rejection, Reply};
+use warp::{Rejection, Reply};
 use warp::http::header::CONTENT_TYPE;
-use warp::http::StatusCode;
+use warp::http::{HeaderValue, Response, StatusCode};
 use warp::path::FullPath;
 use warp::hyper::body::Bytes;
+use crate::handlers::graphql::process_graphql;
 use crate::handlers::params::{get_body_from_request, get_params_from_request};
 use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
@@ -38,16 +39,43 @@ pub async fn serve_dynamic_response(
         add_possible_delay(&endpoint).await;
     }
 
-    let response_body = match tokio::fs::read_to_string(&endpoint.file).await {
-        Ok(data) => maybe_replace_variables(data, &endpoint, &full_url, body),
+    // Read file content
+    let json_file_content = match tokio::fs::read_to_string(&endpoint.file).await {
+        Ok(content) => content,
         Err(_) => return Err(warp::reject::custom(NotFound)),
     };
 
+    // Handle GraphQL simulation if query is detected
+    if let Some(ref body_bytes) = body {
+        if let Ok(body_str) = std::str::from_utf8(body_bytes) {
+            if body_str.contains("\"query\"") {
+                if let Ok(Some(gql_data)) = process_graphql(body_str, &json_file_content) {
+                    let status_code = StatusCode::from_u16(endpoint.status_code.unwrap_or(200))
+                        .unwrap_or(StatusCode::OK);
+                    let response: Response<String> = Response::builder()
+                        .status(status_code)
+                        .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+                        .body(gql_data.into())
+                        .unwrap();
+                    return Ok(response);
+                }
+            }
+        }
+    }
+
+    // Default path if not a GraphQL request
+    let response_body = maybe_replace_variables(json_file_content, &endpoint, &full_url, body);
     let status_code = StatusCode::from_u16(endpoint.status_code.unwrap_or(200))
         .unwrap_or(StatusCode::NOT_FOUND);
 
-    let response = reply::with_status(response_body, status_code);
-    Ok(reply::with_header(response, CONTENT_TYPE, "application/json"))
+    let response = Response::builder()
+        .status(status_code)
+        .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+        .body(response_body.into())
+        .unwrap();
+
+
+    Ok(response)
 }
 
 fn maybe_replace_variables(

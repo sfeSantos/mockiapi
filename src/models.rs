@@ -59,3 +59,14 @@ pub struct AuthData {
 }
 
 pub struct MultipartHandler;
+
+
+#[derive(Debug, Deserialize)]
+pub struct GraphQLRequest {
+    pub query: String,
+    pub operation_name: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct InvalidGraphQLRequest;
+impl Reject for InvalidGraphQLRequest {}
