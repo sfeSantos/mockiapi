@@ -31,6 +31,9 @@ Works with applications built in any programming language - if it can make HTTP 
 ## **✨ Dynamic Response Variables**
 Use placeholders in JSON responses that get replaced at runtime based on request parameters. This allows for **customized responses** based on URL path, query parameters, or request headers.
 
+##  🧪 **GraphQL Simulation (Queries & Mutations)**
+Seamlessly simulate GraphQL endpoints by providing mock responses for queries and mutations. Just POST to your mock endpoint with a `query` or `mutation` in the request body, and MockiAPI will return the corresponding mocked response.
+
 ## Why Choose Dynamic Mock API?
 
 When developing applications that rely on external APIs, you need a way to test your integration without relying on actual endpoints. Dynamic Mock API solves this challenge by providing a flexible, feature-rich solution that outshines existing alternatives:
@@ -174,3 +177,19 @@ Request:
 ```http
 GET /api/limited
 ```
+
+### 📘 GraphQL Simulation Example
+
+✅ How It Works:
+Send a POST request with a GraphQL query or mutation string, like:
+
+```json
+{ "query": "query getUser { id name email }" }
+```
+or:
+```json
+{ "query": "mutation createUser { success user { id name  email } }" }
+```
+The mock server will detect the root field name (getUser, createUser, etc.) and respond with the matching JSON block from your mock configuration.
+
+🛠 Perfect for frontend developers who want to test GraphQL integrations without needing a real backend.

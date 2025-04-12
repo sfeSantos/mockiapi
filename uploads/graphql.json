@@ -1,0 +1,46 @@
+{
+  "query": {
+    "getUser": {
+      "data": {
+        "id": "123",
+        "name": "John Doe",
+        "email": "john@example.com",
+        "age": 30,
+        "address": {
+          "street": "123 Main St",
+          "city": "Anytown",
+          "state": "CA",
+          "zip": "12345"
+        }
+      }
+    }
+  },
+  "mutation": {
+    "createUser": {
+      "data": {
+        "success": true,
+        "user": {
+          "id": "789",
+          "name": "New User",
+          "email": "new@example.com"
+        }
+      }
+    },
+    "updateUser": {
+      "data": {
+        "success": true,
+        "user": {
+          "id": "123",
+          "name": "Updated Name",
+          "email": "john@example.com"
+        }
+      }
+    },
+    "deleteUser": {
+      "data": {
+        "success": true,
+        "id": "123"
+      }
+    }
+  }
+}
