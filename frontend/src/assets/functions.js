@@ -238,7 +238,7 @@ export function updateAuthFields(newAuthType) {
 // Handler para o toggle do GraphQL
 export function handleGraphQLToggle(isEnabled) {
     if (isEnabled) {
-        methods.update(currentMethods => ({
+        methods.update(_ => ({
             GET: false,
             POST: true,
             PUT: false,
@@ -246,7 +246,7 @@ export function handleGraphQLToggle(isEnabled) {
         }));
         path.set('/api/graphql');
     } else {
-        methods.update(currentMethods => ({
+        methods.update(_ => ({
             GET: true,
             POST: false,
             PUT: false,

@@ -218,3 +218,20 @@ footer {
   text-align: center;
   color: #6b7280;
 }
+
+/* Adicione estes estilos para melhorar a experiência quando GraphQL está ativado */
+.info-message {
+  background-color: #e7f3fe;
+  border-left: 6px solid #2196F3;
+  padding: 10px;
+  margin-bottom: 15px;
+}
+
+.disabled-method {
+  color: #999;
+}
+
+.method-selected {
+  font-weight: bold;
+  color: #2196F3;
+}
