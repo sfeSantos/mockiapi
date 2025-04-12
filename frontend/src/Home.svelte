@@ -1,223 +1,42 @@
 <script>
     import { onMount } from 'svelte';
+    import * as utils from './assets/functions.js';
+    import {
+        endpoints,
+        showBasicAuthFields,
+        showTokenAuthFields,
+        path,
+        methods,
+        status_code,
+        delay,
+        rate_limit,
+        authType,
+        username,
+        password,
+        tokenData,
+        response_file,
+        isGraphQL,
+        showPathField,
+        disableHTTPMethods
+    } from './assets/functions.js';
 
-    // State variables
     let endpointsLoader;
-    let endpoints = [];
-    let showBasicAuthFields = false;
-    let showTokenAuthFields = false;
 
-    // Form data
-    let path = '';
-    let methods = {
-        GET: true,
-        POST: false,
-        PUT: false,
-        DELETE: false
-    };
-    let status_code;
-    let delay;
-    let rate_limit = '';
-    let authType = 'none';
-    let username = '';
-    let password = '';
-    let tokenData = '';
-    let response_file;
-    let authentication = null;
-    let isGraphQL = false;
-
-    // Load all registered endpoints on mount
     onMount(() => {
-        loadEndpoints();
+        // Configura a referência do loader e carrega os endpoints
+        utils.setEndpointsLoader(endpointsLoader);
+        utils.loadEndpoints();
     });
 
-    // Handle form submission
-    function handleSubmit(e) {
-        e.preventDefault();
-
-        const formData = new FormData();
-        formData.append("path", path);
-        formData.append("methods", extractMethods(methods));
-        formData.append("status_code", status_code);
-        formData.append("delay", delay);
-        formData.append("rate_limit", rate_limit);
-        formData.append("authentication", handleAuthentication());
-        formData.append("isGraphQL", isGraphQL.toString());
-
-        if (response_file) {
-            formData.append('file', response_file);
-        } else {
-            showNotification('Please select a JSON file', 'error');
-            return;
-        }
-
-        // Register endpoint
-        registerEndpoint(formData);
-    }
-
-    // Get selected methods
-    function extractMethods(methodsSelected) {
-        const selectedMethods = [];
-
-        Object.entries(methodsSelected).forEach(([method, selected]) => {
-            if (selected) {
-                selectedMethods.push(method);
-            }
-        });
-
-        if (selectedMethods.length === 0) {
-            showNotification('Please select at least one HTTP method', 'error');
-            return;
-        }
-
-        return selectedMethods.join(",");
-    }
-
-    // Add authentication
-    function handleAuthentication() {
-        if (authType === 'basic') {
-            authentication = {
-                username,
-                password
-            };
-        } else if (authType === 'token') {
-            try {
-                authentication = JSON.parse(tokenData);
-            } catch (e) {
-                showNotification('Invalid token data format.', 'error');
-                return;
-            }
-        }
-
-        return JSON.stringify(authentication);
-    }
-
-    // Register new endpoint
-    async function registerEndpoint(formData) {
-        showLoader(true);
-
-        try {
-            const response = await fetch('/register', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to register endpoint');
-            }
-
-            await response.json();
-            showNotification('Endpoint registered successfully!', 'success');
-            resetForm();
-            await loadEndpoints();
-        } catch (error) {
-            showNotification(error.message, 'error');
-        } finally {
-            showLoader(false);
-        }
-    }
-
-    // Reset form fields
-    function resetForm() {
-        path = '';
-        methods = { GET: true, POST: false, PUT: false, DELETE: false };
-        status_code = null;
-        delay = null;
-        rate_limit = '';
-        authType = 'none';
-        username = '';
-        password = '';
-        tokenData = '';
-        response_file = null;
-        authentication = null;
-        isGraphQL = false;
-
-        // Reset the file input (needs to be handled separately in Svelte)
-        const fileInput = document.getElementById('response-file');
-        if (fileInput) fileInput.value = '';
-    }
-
-    // Load all registered endpoints
-    async function loadEndpoints() {
-        showLoader(true);
-
-        try {
-            const response = await fetch('/list');
-            const data = await response.json();
-
-            // Convert object to an array
-            endpoints = Object.entries(data).map(([path, config]) => ({
-                path,
-                ...config
-            }));
-        } catch (error) {
-            showNotification('Failed to load endpoints', 'error');
-        } finally {
-            showLoader(false);
-        }
-    }
-
-    // Delete endpoint
-    async function deleteEndpoint(path) {
-        if (confirm(`Are you sure you want to delete the endpoint "${path}"?`)) {
-            showLoader(true);
-
-            try {
-                const response = await fetch(`/delete/${encodeURIComponent(path)}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to delete endpoint');
-                }
-
-                showNotification('Endpoint deleted successfully!', 'success');
-                await loadEndpoints();
-            } catch (error) {
-                showNotification(error.message, 'error');
-            } finally {
-                showLoader(false);
-            }
-        }
-    }
-
-    // Show notification
-    function showNotification(message, type) {
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-
-        document.querySelector('.container').prepend(notification);
-
-        setTimeout(() => {
-            notification.remove();
-        }, 5000);
-    }
-
-    // Show/hide loader
-    function showLoader(show) {
-        if (endpointsLoader) {
-            endpointsLoader.style.display = show ? 'block' : 'none';
-        }
-    }
-
-    // Check if the endpoint is authenticated
-    function isAuthenticated(endpoint) {
-        return endpoint.authentication !== null && endpoint.authentication !== undefined;
-    }
-
-    // Handler for file input
-    function handleFileInput(e) {
-        const files = e.target.files;
-        if (files.length > 0) {
-            response_file = files[0];
-        }
-    }
-
-    // Watch for changes in authType
+    // Observa mudanças no authType
     $: {
-        showBasicAuthFields = authType === 'basic';
-        showTokenAuthFields = authType === 'token';
+        utils.updateAuthFields($authType);
+    }
+
+    // Handler para o toggle de GraphQL
+    function handleGraphQLChange(event) {
+        const isEnabled = event.target.checked;
+        utils.handleGraphQLToggle(isEnabled);
     }
 </script>
 
@@ -230,63 +49,80 @@
     <main>
         <section class="registration-form">
             <h2>Register New Endpoint</h2>
-            <form id="endpoint-form" on:submit={handleSubmit}>
+            <form id="endpoint-form" on:submit={(e) => utils.handleSubmit(
+                e, $path, $methods, $status_code, $delay, $rate_limit,
+                $authType, $username, $password, $tokenData, $response_file, $isGraphQL
+            )}>
                 <div class="form-group">
-                    <label for="path">Endpoint Path:</label>
-                    <input type="text" id="path" name="path" placeholder="/api/resource" required bind:value={path}>
-                    <small>Start with /api/</small>
+                    <label for="isGraphQL">GraphQL:</label>
+                    <div>
+                        <input type="checkbox" id="isGraphQL" name="isGraphQL" value="true"
+                               bind:checked={$isGraphQL} on:change={handleGraphQLChange}>
+                        <label for="isGraphQL">Enable GraphQL support</label>
+                    </div>
                 </div>
+
+                {#if $showPathField}
+                    <div class="form-group">
+                        <label for="path">Endpoint Path:</label>
+                        <input type="text" id="path" name="path" placeholder="/api/resource" required bind:value={$path}>
+                        <small>Start with /api/</small>
+                    </div>
+                {:else}
+                    <div class="form-group info-message">
+                        <p>Using default GraphQL endpoint path: <strong>/api/graphql</strong></p>
+                    </div>
+                {/if}
 
                 <div class="form-group" id="group">
                     <label for="group">HTTP Methods:</label>
                     <div class="checkbox-group">
                         <div>
-                            <input type="checkbox" id="get" name="methods" value="GET" bind:checked={methods.GET}>
-                            <label for="get">GET</label>
+                            <input type="checkbox" id="get" name="methods" value="GET"
+                                   bind:checked={$methods.GET} disabled={$disableHTTPMethods}>
+                            <label for="get" class={$disableHTTPMethods ? 'disabled-method' : ''}>GET</label>
                         </div>
                         <div>
-                            <input type="checkbox" id="post" name="methods" value="POST" bind:checked={methods.POST}>
-                            <label for="post">POST</label>
+                            <input type="checkbox" id="post" name="methods" value="POST"
+                                   bind:checked={$methods.POST} disabled={$disableHTTPMethods}>
+                            <label for="post" class={$disableHTTPMethods ? 'method-selected' : ''}>POST</label>
                         </div>
                         <div>
-                            <input type="checkbox" id="put" name="methods" value="PUT" bind:checked={methods.PUT}>
-                            <label for="put">PUT</label>
+                            <input type="checkbox" id="put" name="methods" value="PUT"
+                                   bind:checked={$methods.PUT} disabled={$disableHTTPMethods}>
+                            <label for="put" class={$disableHTTPMethods ? 'disabled-method' : ''}>PUT</label>
                         </div>
                         <div>
-                            <input type="checkbox" id="delete" name="methods" value="DELETE" bind:checked={methods.DELETE}>
-                            <label for="delete">DELETE</label>
+                            <input type="checkbox" id="delete" name="methods" value="DELETE"
+                                   bind:checked={$methods.DELETE} disabled={$disableHTTPMethods}>
+                            <label for="delete" class={$disableHTTPMethods ? 'disabled-method' : ''}>DELETE</label>
                         </div>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="isGraphQL">GraphQL:</label>
-                    <div>
-                        <input type="checkbox" id="isGraphQL" name="isGraphQL" value="true" bind:checked={isGraphQL}>
-                        <label for="isGraphQL">Enable GraphQL support</label>
-                    </div>
+                    {#if $disableHTTPMethods}
+                        <small>Only POST method is available for GraphQL</small>
+                    {/if}
                 </div>
 
                 <div class="form-group">
                     <label for="status-code">Status Code:</label>
-                    <input type="number" id="status-code" name="statusCode" min="100" max="599" bind:value={status_code}>
+                    <input type="number" id="status-code" name="statusCode" min="100" max="599" bind:value={$status_code}>
                 </div>
 
                 <div class="form-group">
                     <label for="delay">Response Delay (ms):</label>
-                    <input type="number" id="delay" name="delay" min="0" bind:value={delay}>
+                    <input type="number" id="delay" name="delay" min="0" bind:value={$delay}>
                 </div>
 
                 <div class="form-group">
                     <label for="rate-limit">Rate Limit (req/min):</label>
-                    <input type="text" id="rate-limit" name="rate-limit" min="0" placeholder="e.g (10/60000)" bind:value={rate_limit}>
+                    <input type="text" id="rate-limit" name="rate-limit" min="0" placeholder="e.g (10/60000)" bind:value={$rate_limit}>
                     <small>Set 0 for unlimited</small>
                 </div>
 
                 <!-- Authentication Fields -->
                 <div class="form-group">
                     <label for="authType">Authentication Type:</label>
-                    <select id="authType" name="authType" bind:value={authType}>
+                    <select id="authType" name="authType" bind:value={$authType}>
                         <option value="none">No Auth</option>
                         <option value="basic">Basic Auth</option>
                         <option value="token">Token Auth</option>
@@ -294,28 +130,28 @@
                 </div>
 
                 <!-- Basic Auth Fields -->
-                {#if showBasicAuthFields}
+                {#if $showBasicAuthFields}
                     <div id="basicAuthFields" class="auth-fields">
                         <h3>Basic Authentication</h3>
                         <label for="username">Username:</label>
-                        <input type="text" id="username" name="username" placeholder="Enter username" bind:value={username}><br><br>
+                        <input type="text" id="username" name="username" placeholder="Enter username" bind:value={$username}><br><br>
                         <label for="password">Password:</label>
-                        <input type="password" id="password" name="password" placeholder="Enter password" bind:value={password}><br><br>
+                        <input type="password" id="password" name="password" placeholder="Enter password" bind:value={$password}><br><br>
                     </div>
                 {/if}
 
                 <!-- Token Auth Fields -->
-                {#if showTokenAuthFields}
+                {#if $showTokenAuthFields}
                     <div id="tokenAuthFields" class="auth-fields">
                         <h3>Token Authentication</h3>
                         <label for="tokenData">Token Data (JSON):</label><br>
-                        <textarea id="tokenData" name="tokenData" placeholder="{`{\"uat\": \"value\", \"sub\": \"value\", \"iss\": \"value\"}`}" rows="4" cols="50" bind:value={tokenData}></textarea><br><br>
+                        <textarea id="tokenData" name="tokenData" placeholder="{`{\"uat\": \"value\", \"sub\": \"value\", \"iss\": \"value\"}`}" rows="4" cols="50" bind:value={$tokenData}></textarea><br><br>
                     </div>
                 {/if}
 
                 <div class="form-group">
                     <label for="response-file">Response JSON File:</label>
-                    <input type="file" id="response-file" name="file" accept="application/json" required on:change={handleFileInput}>
+                    <input type="file" id="response-file" name="file" accept="application/json" required on:change={utils.handleFileInput}>
                 </div>
 
                 <div class="form-group">
@@ -342,14 +178,14 @@
                     </tr>
                     </thead>
                     <tbody id="endpoints-list">
-                    {#if endpoints.length === 0}
+                    {#if $endpoints.length === 0}
                         <tr>
                             <td colspan="8" class="empty-state">
                                 No endpoints registered. Register your first endpoint using the form.
                             </td>
                         </tr>
                     {:else}
-                        {#each endpoints as endpoint}
+                        {#each $endpoints as endpoint}
                             <tr>
                                 <td>{endpoint.path}</td>
                                 <td>
@@ -368,10 +204,10 @@
                                     <td>---</td>
                                 {/if}
                                 <td align="center">
-                                    <input type="checkbox" disabled checked={isAuthenticated(endpoint)}>
+                                    <input type="checkbox" disabled checked={utils.isAuthenticated(endpoint)}>
                                 </td>
                                 <td>
-                                    <button class="btn-danger" on:click={() => deleteEndpoint(endpoint.path)}>
+                                    <button class="btn-danger" on:click={() => utils.deleteEndpoint(endpoint.path)}>
                                         Delete
                                     </button>
                                 </td>
@@ -388,3 +224,22 @@
         <p>MockiAPI - Created by <a href="mailto:eduf.santos@mail.com">Eduardo Santos</a></p>
     </footer>
 </div>
+
+<style>
+    /* Adicione estes estilos para melhorar a experiência quando GraphQL está ativado */
+    .info-message {
+        background-color: #e7f3fe;
+        border-left: 6px solid #2196F3;
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+
+    .disabled-method {
+        color: #999;
+    }
+
+    .method-selected {
+        font-weight: bold;
+        color: #2196F3;
+    }
+</style>
