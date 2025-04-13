@@ -45,8 +45,8 @@ Whether you're building web apps, mobile clients, or testing backend integration
 
 #### Linux / macOS
 ```bash
-chmod +x init.sh
 cd mockiapi
+chmod +x init.sh
 ./init.sh
 ```
 
