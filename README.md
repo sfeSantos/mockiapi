@@ -101,7 +101,9 @@ GET /api/user/123/item/laptop?name=John
   "timestamp": "2025-03-31T12:00:00Z"
 }
 ```
-3️⃣ GraphQL Mock Example
+### 3️⃣ GraphQL Mock Example
+
+_Check `graphql.json` in uploads folder_
 
 **Request:**
 ```json
