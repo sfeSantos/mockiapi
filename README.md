@@ -50,7 +50,7 @@ chmod +x init.sh
 ./init.sh
 ```
 
-#### Linux / macOS
+#### Windows
 ```bash
 double-click init.bat
 ```
