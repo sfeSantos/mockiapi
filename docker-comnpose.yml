@@ -1,0 +1,6 @@
+version: "3.8"
+services:
+  mockiapi:
+    build: .
+    ports:
+      - "3001:3001"
