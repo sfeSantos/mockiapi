@@ -71,5 +71,5 @@ async fn main() {
         .with(log);
     
     println!(".: Server running at http://localhost:3001");
-    warp::serve(routes).run(([127, 0, 0, 1], 3001)).await;
+    warp::serve(routes).run(([0, 0, 0, 0], 3001)).await;
 }
