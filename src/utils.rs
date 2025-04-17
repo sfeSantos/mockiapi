@@ -5,7 +5,7 @@ use log::info;
 use warp::{Filter, Rejection, Reply};
 use warp::http::{Response, StatusCode};
 use warp::hyper::Body;
-use crate::models::{Endpoint, MethodNotAllowed, NotFound, RateLimited, Unauthorized};
+use crate::models::{Endpoint, InvalidGraphQLRequest, MethodNotAllowed, NotFound, RateLimited, Unauthorized};
 use crate::middlewares::rate_limit::RateLimitTracker;
 
 /// Adds a delay to the request handling if the `Endpoint` specifies a delay.
@@ -113,6 +113,12 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Rejection> {
         let response: Response<Body> = Response::builder()
             .status(StatusCode::METHOD_NOT_ALLOWED)
             .body(Body::from("Method not allowed\n"))
+            .unwrap();
+        return Ok(response);
+    } else if err.find::<InvalidGraphQLRequest>().is_some() {
+        let response: Response<Body> = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::from("Invalid gRPC request\n"))
             .unwrap();
         return Ok(response);
     }

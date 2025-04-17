@@ -16,6 +16,8 @@
         isGraphQL,
         showPathField,
         disableHTTPMethods,
+        grpcService,
+        grpcRPC,
         setEndpointsLoader,
         loadEndpoints,
         deleteEndpoint,
@@ -26,12 +28,10 @@
     } from './assets/functions.js';
 
     import { onMount } from 'svelte';
-    import { writable } from 'svelte/store';
 
     let authTypeValue = 'none';
     let selectedTab = 'REST';
-    const grpcService = writable('');
-    const grpcRPC = writable('');
+    
 
     let loaderRef;
 
@@ -81,7 +81,9 @@
           $password,
           $tokenData,
           $response_file,
-          selectedTab === 'GraphQL'
+          selectedTab === 'GraphQL',
+          $grpcService,
+          $grpcRPC
         )
       }>
                 {#if selectedTab !== 'gRPC'}

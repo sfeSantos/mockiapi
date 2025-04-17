@@ -39,6 +39,7 @@ async fn main() {
         .and(warp::path!("register"))
         .and(warp::multipart::form().max_length(5_000_000)) // 5MB
         .and(with_endpoints(endpoints.clone()))
+        .and(registry_filter.clone())
         .and_then(register_endpoint);
 
     let list = warp::get()

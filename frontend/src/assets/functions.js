@@ -23,6 +23,8 @@ export const password = writable('');
 export const tokenData = writable('');
 export const response_file = writable(null);
 export const isGraphQL = writable(false);
+export const grpcRPC = writable('');
+export const grpcService = writable('');
 
 // Derived stores para controle de UI com base no estado GraphQL
 // Como isGraphQL começa como false, showPathField deve começar como true
@@ -157,6 +159,7 @@ export function resetForm() {
     tokenData.set('');
     response_file.set(null);
     isGraphQL.set(false);
+    grpcRPC.set('')
 
     // Reset do input de arquivo
     const fileInput = document.getElementById('response-file');
@@ -191,7 +194,7 @@ export function isAuthenticated(endpoint) {
 // Processa o envio do formulário
 export function handleSubmit(event, pathValue, methodsValue, status_codeValue, delayValue,
                              rate_limitValue, authTypeValue, usernameValue, passwordValue,
-                             tokenDataValue, response_fileValue, isGraphQLValue) {
+                             tokenDataValue, response_fileValue, isGraphQLValue, grpcService, grpcRPC) {
     event.preventDefault();
 
     const formData = new FormData();
@@ -209,6 +212,8 @@ export function handleSubmit(event, pathValue, methodsValue, status_codeValue, d
     formData.append("rate_limit", rate_limitValue);
     formData.append("authentication", handleAuthentication(authTypeValue, usernameValue, passwordValue, tokenDataValue));
     formData.append("isGraphQL", isGraphQLValue.toString());
+    formData.append("grpcService", grpcService);
+    formData.append("grpcRPC", grpcRPC);
 
     if (response_fileValue) {
         formData.append('file', response_fileValue);
