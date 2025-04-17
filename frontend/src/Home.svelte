@@ -1,6 +1,4 @@
 <script>
-    import { onMount } from 'svelte';
-    import * as utils from './assets/functions.js';
     import {
         endpoints,
         showBasicAuthFields,
@@ -17,210 +15,212 @@
         response_file,
         isGraphQL,
         showPathField,
-        disableHTTPMethods
+        disableHTTPMethods,
+        setEndpointsLoader,
+        loadEndpoints,
+        deleteEndpoint,
+        handleSubmit,
+        handleFileInput,
+        updateAuthFields,
+        handleGraphQLToggle
     } from './assets/functions.js';
 
-    let endpointsLoader;
+    import { onMount } from 'svelte';
+    import { writable } from 'svelte/store';
+
+    let authTypeValue = 'none';
+    let selectedTab = 'REST';
+    const grpcService = writable('');
+    const grpcRPC = writable('');
+
+    let loaderRef;
 
     onMount(() => {
-        // Configura a referência do loader e carrega os endpoints
-        utils.setEndpointsLoader(endpointsLoader);
-        utils.loadEndpoints();
+        setEndpointsLoader(loaderRef);
+        loadEndpoints();
     });
 
-    // Observa mudanças no authType
-    $: {
-        utils.updateAuthFields($authType);
-    }
-
-    // Handler para o toggle de GraphQL
-    function handleGraphQLChange(event) {
-        const isEnabled = event.target.checked;
-        utils.handleGraphQLToggle(isEnabled);
+    $: updateAuthFields(authTypeValue);
+    $: handleGraphQLToggle(selectedTab === 'GraphQL');
+    $: if (selectedTab === 'gRPC') {
+        path.set('/grpc');
+        methods.set({ GET: false, POST: true, PUT: false, DELETE: false });
     }
 </script>
 
 <div class="container">
     <header>
-        <h1>MockiAPI</h1>
-        <p>Register mock API endpoints and their responses</p>
+        <h1>MockiAPI Dashboard</h1>
     </header>
 
     <main>
         <section class="registration-form">
-            <h2>Register New Endpoint</h2>
-            <form id="endpoint-form" on:submit={(e) => utils.handleSubmit(
-                e, $path, $methods, $status_code, $delay, $rate_limit,
-                $authType, $username, $password, $tokenData, $response_file, $isGraphQL
-            )}>
-                <div class="form-group">
-                    <label for="isGraphQL">GraphQL:</label>
-                    <div>
-                        <input type="checkbox" id="isGraphQL" name="isGraphQL" value="true"
-                               bind:checked={$isGraphQL} on:change={handleGraphQLChange}>
-                        <label for="isGraphQL">Enable GraphQL support</label>
-                    </div>
-                </div>
+            <h2>➕ Register New Endpoint</h2>
 
-                {#if $showPathField}
-                    <div class="form-group">
-                        <label for="path">Endpoint Path:</label>
-                        <input type="text" id="path" name="path" placeholder="/api/resource" required bind:value={$path}>
-                        <small>Start with /api/</small>
-                    </div>
+            <div class="tabs">
+                {#each ['REST', 'GraphQL', 'gRPC'] as tab}
+                    <button
+                            class="tab-btn {selectedTab === tab ? 'tab-active' : ''}"
+                            on:click={() => selectedTab = tab}
+                    >
+                        {tab}
+                    </button>
+                {/each}
+            </div>
+
+            <form on:submit|preventDefault={(e) =>
+        handleSubmit(
+          e,
+          $path,
+          $methods,
+          $status_code,
+          $delay,
+          $rate_limit,
+          authTypeValue,
+          $username,
+          $password,
+          $tokenData,
+          $response_file,
+          selectedTab === 'GraphQL'
+        )
+      }>
+                {#if selectedTab !== 'gRPC'}
+                    {#if $showPathField}
+                        <div class="form-group" id="path">
+                            <label for="path">Path</label>
+                            <input type="text" bind:value={$path} placeholder="/api/example" />
+                        </div>
+                    {/if}
+
+                    {#if !$disableHTTPMethods}
+                        <div class="form-group" id="hMethods">
+                            <label for="hMethods">HTTP Methods</label>
+                            <div class="checkbox-group">
+                                {#each Object.keys($methods) as method}
+                                    <div>
+                                        <input
+                                                type="checkbox"
+                                                bind:checked={$methods[method]}
+                                                on:change={() => methods.update(m => ({ ...m, [method]: !$methods[method] }))}
+                                                id={method}
+                                        />
+                                        <label for={method}>{method}</label>
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/if}
                 {:else}
-                    <div class="form-group info-message">
-                        <p>Using default GraphQL endpoint path: <strong>/api/graphql</strong></p>
+                    <div class="form-group" id="service">
+                        <label for="service">Service</label>
+                        <input type="text" bind:value={$grpcService} placeholder="com.example.MyService" />
+                        <input type="hidden" bind:value={$path} placeholder="/api/example" />
+                    </div>
+                    <div class="form-group" id="rpc">
+                        <label for="rpc">RPC Method</label>
+                        <input type="text" bind:value={$grpcRPC} placeholder="GetSomething" />
                     </div>
                 {/if}
 
-                <div class="form-group" id="group">
-                    <label for="group">HTTP Methods:</label>
-                    <div class="checkbox-group">
-                        <div>
-                            <input type="checkbox" id="get" name="methods" value="GET"
-                                   bind:checked={$methods.GET} disabled={$disableHTTPMethods}>
-                            <label for="get" class={$disableHTTPMethods ? 'disabled-method' : ''}>GET</label>
-                        </div>
-                        <div>
-                            <input type="checkbox" id="post" name="methods" value="POST"
-                                   bind:checked={$methods.POST} disabled={$disableHTTPMethods}>
-                            <label for="post" class={$disableHTTPMethods ? 'method-selected' : ''}>POST</label>
-                        </div>
-                        <div>
-                            <input type="checkbox" id="put" name="methods" value="PUT"
-                                   bind:checked={$methods.PUT} disabled={$disableHTTPMethods}>
-                            <label for="put" class={$disableHTTPMethods ? 'disabled-method' : ''}>PUT</label>
-                        </div>
-                        <div>
-                            <input type="checkbox" id="delete" name="methods" value="DELETE"
-                                   bind:checked={$methods.DELETE} disabled={$disableHTTPMethods}>
-                            <label for="delete" class={$disableHTTPMethods ? 'disabled-method' : ''}>DELETE</label>
-                        </div>
-                    </div>
-                    {#if $disableHTTPMethods}
-                        <small>Only POST method is available for GraphQL</small>
-                    {/if}
+                <div class="form-group" id="status">
+                    <label for="status">Status Code</label>
+                    <input type="number" bind:value={$status_code} />
                 </div>
 
-                <div class="form-group">
-                    <label for="status-code">Status Code:</label>
-                    <input type="number" id="status-code" name="statusCode" min="100" max="599" bind:value={$status_code}>
+                <div class="form-group" id="delay">
+                    <label for="delay">Delay (ms)</label>
+                    <input type="number" bind:value={$delay} />
                 </div>
 
-                <div class="form-group">
-                    <label for="delay">Response Delay (ms):</label>
-                    <input type="number" id="delay" name="delay" min="0" bind:value={$delay}>
+                <div class="form-group" id="limit">
+                    <label for="limit">Rate Limit</label>
+                    <input type="text" bind:value={$rate_limit} />
                 </div>
 
-                <div class="form-group">
-                    <label for="rate-limit">Rate Limit (req/min):</label>
-                    <input type="text" id="rate-limit" name="rate-limit" min="0" placeholder="e.g (10/60000)" bind:value={$rate_limit}>
-                    <small>Set 0 for unlimited</small>
-                </div>
-
-                <!-- Authentication Fields -->
-                <div class="form-group">
-                    <label for="authType">Authentication Type:</label>
-                    <select id="authType" name="authType" bind:value={$authType}>
+                <div class="form-group" id="auth">
+                    <label for="auth">Authentication Type</label>
+                    <select bind:value={authTypeValue}>
                         <option value="none">No Auth</option>
                         <option value="basic">Basic Auth</option>
                         <option value="token">Token Auth</option>
                     </select>
                 </div>
 
-                <!-- Basic Auth Fields -->
                 {#if $showBasicAuthFields}
-                    <div id="basicAuthFields" class="auth-fields">
-                        <h3>Basic Authentication</h3>
-                        <label for="username">Username:</label>
-                        <input type="text" id="username" name="username" placeholder="Enter username" bind:value={$username}><br><br>
-                        <label for="password">Password:</label>
-                        <input type="password" id="password" name="password" placeholder="Enter password" bind:value={$password}><br><br>
+                    <div class="form-group" id="username">
+                        <label for="username">Username</label>
+                        <input type="text" bind:value={$username} />
+                    </div>
+                    <div class="form-group" id="pwd">
+                        <label for="pwd">Password</label>
+                        <input type="password" bind:value={$password} />
                     </div>
                 {/if}
 
-                <!-- Token Auth Fields -->
                 {#if $showTokenAuthFields}
-                    <div id="tokenAuthFields" class="auth-fields">
-                        <h3>Token Authentication</h3>
-                        <label for="tokenData">Token Data (JSON):</label><br>
-                        <textarea id="tokenData" name="tokenData" placeholder="{`{\"uat\": \"value\", \"sub\": \"value\", \"iss\": \"value\"}`}" rows="4" cols="50" bind:value={$tokenData}></textarea><br><br>
+                    <div class="form-group" id="token">
+                        <label for="token">Token Data (JSON)</label>
+                        <textarea rows="4" bind:value={$tokenData}></textarea>
                     </div>
                 {/if}
 
-                <div class="form-group">
-                    <label for="response-file">Response JSON File:</label>
-                    <input type="file" id="response-file" name="file" accept="application/json" required on:change={utils.handleFileInput}>
+                <div class="form-group" id="file">
+                    <label for="file">Response (JSON File)</label>
+                    <input type="file" id="response-file" accept="application/json" on:change={handleFileInput} />
                 </div>
 
-                <div class="form-group">
-                    <button type="submit" class="btn-primary">Register Endpoint</button>
-                </div>
+                <button class="btn-primary" type="submit">Register</button>
             </form>
         </section>
 
         <section class="registered-endpoints">
-            <h2>Registered Endpoints</h2>
-            <div class="loader" id="endpoints-loader" bind:this={endpointsLoader}></div>
-            <div id="endpoints-container">
-                <table id="endpoints-table">
+            <h2>📋 Registered Endpoints</h2>
+            <div bind:this={loaderRef} class="loader"></div>
+
+            {#if $endpoints.length === 0}
+                <div class="empty-state">No endpoints registered yet.</div>
+            {:else}
+                <table>
                     <thead>
                     <tr>
+                        <th>Type</th>
                         <th>Path</th>
                         <th>Methods</th>
-                        <th>File</th>
                         <th>Status</th>
-                        <th>Delay (ms)</th>
-                        <th>Rate Limit req/min</th>
-                        <th>Authenticated</th>
+                        <th>Auth</th>
                         <th>Actions</th>
                     </tr>
                     </thead>
-                    <tbody id="endpoints-list">
-                    {#if $endpoints.length === 0}
+                    <tbody>
+                    {#each $endpoints as ep}
                         <tr>
-                            <td colspan="8" class="empty-state">
-                                No endpoints registered. Register your first endpoint using the form.
-                            </td>
-                        </tr>
-                    {:else}
-                        {#each $endpoints as endpoint}
-                            <tr>
-                                <td>{endpoint.path}</td>
-                                <td>
+                            <td>{ep.type || 'REST'}</td>
+                            <td>{ep.path}</td>
+                            <td>
+                                {#if ep.method}
                                     <div class="methods-list">
-                                        {#each endpoint.methods as method}
-                                            <span class="method-tag">{method}</span>
+                                        {#each ep.method as m}
+                                            <span class="method-tag">{m}</span>
                                         {/each}
                                     </div>
-                                </td>
-                                <td>{endpoint.file.split('/')[1]}</td>
-                                <td>{endpoint.statusCode}</td>
-                                <td>{endpoint.delay} ms</td>
-                                {#if endpoint.rate_limit}
-                                    <td>{endpoint.rate_limit.requests}/{endpoint.rate_limit.window_ms}</td>
                                 {:else}
-                                    <td>---</td>
+                                    <span class="disabled-method">—</span>
                                 {/if}
-                                <td align="center">
-                                    <input type="checkbox" disabled checked={utils.isAuthenticated(endpoint)}>
-                                </td>
-                                <td>
-                                    <button class="btn-danger" on:click={() => utils.deleteEndpoint(endpoint.path)}>
-                                        Delete
-                                    </button>
-                                </td>
-                            </tr>
-                        {/each}
-                    {/if}
+                            </td>
+                            <td>{ep.status_code}</td>
+                            <td>{ep.authentication ? 'Yes' : 'No'}</td>
+                            <td>
+                                <button class="btn-danger" on:click={() => deleteEndpoint(ep.path)}>Delete</button>
+                            </td>
+                        </tr>
+                    {/each}
                     </tbody>
                 </table>
-            </div>
+            {/if}
         </section>
     </main>
 
     <footer>
-        <p>MockiAPI - Created by <a href="mailto:eduf.santos@mail.com">Eduardo Santos</a></p>
+        MockiAPI &copy; 2025 — REST • GraphQL • gRPC
     </footer>
 </div>
