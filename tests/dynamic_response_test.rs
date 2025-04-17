@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 use std::time::{Duration};
 use serde_json::{json, Value};
 use tokio::time::Instant;
+use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::{Endpoint, RateLimit};
 use mockiapi::middlewares::rate_limit::{new_rate_limit};
 use mockiapi::routes::dynamic_response::{serve_dynamic_response};
@@ -14,13 +15,21 @@ use mockiapi::utils::handle_rejection;
 async fn test_non_existent_endpoint() {
     let endpoints = Arc::new(Mutex::new(HashMap::new()));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
     
-    let filter = warp::path::full()
+    
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::any().map(|| None))
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -50,14 +59,22 @@ async fn test_valid_request_without_auth() {
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
-    let filter = warp::path::full()
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::any().map(|| None))
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
-        .and_then(serve_dynamic_response);
+        .and(registry_filter.clone())
+        .and_then(serve_dynamic_response)
+        .recover(handle_rejection);
 
     let res = request()
         .method("GET")
@@ -85,13 +102,20 @@ async fn test_valid_request_with_basic_auth() {
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
-    let filter = warp::path::full()
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::any().map(|| None))
         .and(warp::any().map(|| Some("Basic dXNlcjpwYXNz".to_string()))) // Base64 for user:pass
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response);
 
     let res = request()
@@ -121,13 +145,20 @@ async fn test_invalid_authentication() {
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
-    let filter = warp::path::full()
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::any().map(|| None))
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -158,13 +189,20 @@ async fn test_valid_request_with_bearer_auth() {
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
-    let filter = warp::path::full()
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::any().map(|| None))
         .and(warp::any().map(|| Some("Bearer SOME_LONG_TOKEN".to_string())))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response);
 
     let res = request()
@@ -197,13 +235,20 @@ async fn test_rate_limit_exceeded() {
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
-    let filter = warp::path::full()
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::any().map(|| None))
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
     // First request should pass
@@ -241,8 +286,14 @@ async fn test_request_with_delay() {
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
-    let filter = warp::path::full()
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::query::<HashMap<String, String>>()
             .map(Some) // Wrap in Some()
             .or(warp::any().map(|| None)) // Use None when no query params
@@ -251,6 +302,7 @@ async fn test_request_with_delay() {
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response);
 
     let start_time = Instant::now();
@@ -282,13 +334,20 @@ async fn test_extract_params_from_request() {
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
-    let filter = warp::path::full()
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::query::<HashMap<String, String>>().map(Some))
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -326,8 +385,14 @@ async fn test_extract_params_from_request_body() {
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
-    let filter = warp::path::full()
+    let filter = warp::method()
+        .and(warp::path::full())
         .and(warp::query::<HashMap<String, String>>().map(Some))
         .and(warp::any().map(|| None))
         .and(warp::any().map(move || endpoints.clone()))
@@ -335,6 +400,7 @@ async fn test_extract_params_from_request_body() {
         .and(warp::body::bytes().map(Some)
             .or(warp::any().map(|| None)) // Use None when no query params
             .unify())
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 

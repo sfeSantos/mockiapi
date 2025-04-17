@@ -3,9 +3,9 @@ use std::time::Duration;
 use tokio::time::sleep;
 use log::info;
 use warp::{Filter, Rejection, Reply};
-use warp::http::Response;
+use warp::http::{Response, StatusCode};
 use warp::hyper::Body;
-use crate::models::{Endpoint, NotFound, RateLimited, Unauthorized};
+use crate::models::{Endpoint, MethodNotAllowed, NotFound, RateLimited, Unauthorized};
 use crate::middlewares::rate_limit::RateLimitTracker;
 
 /// Adds a delay to the request handling if the `Endpoint` specifies a delay.
@@ -93,20 +93,26 @@ pub fn reconstruct_full_url(path: &str, query_params: &Option<HashMap<String, St
 pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Rejection> {
     if err.find::<Unauthorized>().is_some() {
         let response: Response<Body> = Response::builder()
-            .status(401)
+            .status(StatusCode::UNAUTHORIZED)
             .body(Body::from("Unauthorized\n"))
             .unwrap();
         return Ok(response);
     } else if err.find::<RateLimited>().is_some() {
         let response: Response<Body> = Response::builder()
-            .status(429)
+            .status(StatusCode::TOO_MANY_REQUESTS)
             .body(Body::from("Rate limit exceeded\n"))
             .unwrap();
         return Ok(response);
     } else if err.find::<NotFound>().is_some() {
         let response: Response<Body> = Response::builder()
-            .status(404)
+            .status(StatusCode::NOT_FOUND)
             .body(Body::from("Resource not found\n"))
+            .unwrap();
+        return Ok(response);
+    } else if err.find::<MethodNotAllowed>().is_some() {
+        let response: Response<Body> = Response::builder()
+            .status(StatusCode::METHOD_NOT_ALLOWED)
+            .body(Body::from("Method not allowed\n"))
             .unwrap();
         return Ok(response);
     }
