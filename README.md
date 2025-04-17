@@ -43,7 +43,7 @@ Download pre-built binaries for your platform:
 
 - 🐧 [Linux (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-amd64)  
 - 🍎 [macOS (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64)  
-- 🪟 [Windows (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64)
+- 🪟 [Windows (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64) (**don't forget to add the extension `.exe`**)
 
 ### 🔧 Prerequisites
 
