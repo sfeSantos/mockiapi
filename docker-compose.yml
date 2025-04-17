@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   mockiapi:
-    image: edufsantos/mockiapi:0.1.7
+    image: edufsantos/mockiapi:0.1.8
     ports:
       - "3001:3001"
     restart: unless-stopped

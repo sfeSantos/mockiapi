@@ -33,14 +33,14 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: mockserver
-            asset_name: mockserver-linux-amd64
+            artifact_name: mockiapi
+            asset_name: mockiapi-linux-amd64
           - os: windows-latest
-            artifact_name: mockserver.exe
-            asset_name: mockserver-windows-amd64
+            artifact_name: mockiapi.exe
+            asset_name: mockiapi-windows-amd64
           - os: macos-latest
-            artifact_name: mockserver
-            asset_name: mockserver-macos-amd64
+            artifact_name: mockiapi
+            asset_name: mockiapi-macos-amd64
 
     steps:
       - uses: actions/checkout@v3
