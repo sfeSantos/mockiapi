@@ -20,18 +20,18 @@ Whether you're building web apps, mobile clients, or testing backend integration
 
 ## ✨ Key Features
 
-| Feature                     | Description                                                                 |
-|-----------------------------|-----------------------------------------------------------------------------|
-| 🧩 Easy Endpoint Setup       | Register REST/GraphQL endpoints using a friendly UI                        |
-| 📄 JSON Mock Responses       | Return static or dynamic JSON responses                                     |
-| 🔒 Authentication            | Support for Basic Auth and Bearer Token validation                         |
-| ⏱️ Rate Limiting             | Limit number of requests per time window                                   |
-| ⏳ Configurable Delays       | Simulate network latency in milliseconds                                   |
-| 🔁 Custom HTTP Status Codes  | Return success, redirects, client or server error responses                 |
-| 📊 Request Logging           | Logs every request with metadata                                           |
-| 🧪 GraphQL Support           | Define mock responses for queries and mutations                            |
-| 🧠 Dynamic Response Variables| Insert request values into your JSON response (e.g., path/query/header)    |
-🔌 gRPC Simulation            | Mock gRPC service calls using HTTP-based endpoints                         |
+| Feature                        | Description                                                             |
+|--------------------------------|-------------------------------------------------------------------------|
+| 🧩 Easy Endpoint Setup         | Register REST/GraphQL endpoints using a friendly UI                     |
+| 📄 JSON Mock Responses         | Return static or dynamic JSON responses                                 |
+| 🔒 Authentication              | Support for Basic Auth and Bearer Token validation                      |
+| ⏱️ Rate Limiting               | Limit number of requests per time window                                |
+| ⏳ Configurable Delays          | Simulate network latency in milliseconds                                |
+| 🔁 Custom HTTP Status Codes    | Return success, redirects, client or server error responses             |
+| 📊 Request Logging             | Logs every request with metadata                                        |
+| 🧪 GraphQL Support             | Define mock responses for queries and mutations                         |
+| 🧠 Dynamic Response Variables  | Insert request values into your JSON response (e.g., path/query/header) |
+| 🔌 gRPC Simulation             | Mock gRPC service calls using HTTP-based endpoints                      |
 
 ---
 

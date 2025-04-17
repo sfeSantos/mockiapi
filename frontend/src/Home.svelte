@@ -8,12 +8,10 @@
         status_code,
         delay,
         rate_limit,
-        authType,
         username,
         password,
         tokenData,
         response_file,
-        isGraphQL,
         showPathField,
         disableHTTPMethods,
         grpcService,
@@ -31,7 +29,7 @@
 
     let authTypeValue = 'none';
     let selectedTab = 'REST';
-    
+
 
     let loaderRef;
 
