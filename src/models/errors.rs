@@ -27,3 +27,7 @@ impl Reject for Utf8Error {}
 #[derive(Debug)]
 pub struct InvalidGraphQLRequest;
 impl Reject for InvalidGraphQLRequest {}
+
+#[derive(Debug)]
+pub struct MethodNotAllowed;
+impl Reject for MethodNotAllowed {}

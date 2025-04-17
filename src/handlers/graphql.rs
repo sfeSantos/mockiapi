@@ -2,8 +2,30 @@ use std::collections::HashSet;
 use graphql_parser::parse_query;
 use graphql_parser::query::{Definition, OperationDefinition, Selection, SelectionSet};
 use serde_json::Value;
+use warp::http::{HeaderValue, Response, StatusCode};
+use warp::http::header::CONTENT_TYPE;
 use warp::Rejection;
-use crate::models::{GraphQLRequest, InvalidGraphQLRequest};
+use crate::models::{Endpoint, GraphQLRequest, InvalidGraphQLRequest};
+
+pub fn handle_graphql(
+    body_str: &str,
+    endpoint: &Endpoint,
+    json_file_content: &str,
+) -> Option<Response<String>> {
+    if body_str.contains("\"query\"") {
+        if let Ok(Some(gql_data)) = process_graphql(body_str, json_file_content) {
+            let status_code = StatusCode::from_u16(endpoint.status_code.unwrap_or(200))
+                .unwrap_or(StatusCode::OK);
+            let response = Response::builder()
+                .status(status_code)
+                .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+                .body(gql_data.into())
+                .ok()?;
+            return Some(response);
+        }
+    }
+    None
+}
 
 /// Extract the operation name and load the mocked data
 pub fn process_graphql(body: &str, json_data: &str) -> Result<Option<String>, Rejection> {

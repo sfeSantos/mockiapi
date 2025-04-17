@@ -4,7 +4,6 @@ use log::info;
 use tokio::sync::Mutex;
 use warp::{Filter};
 use warp::http::header::AUTHORIZATION;
-use mockiapi::handlers::grpc::grpc_handler;
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::{Endpoints};
 use mockiapi::middlewares::rate_limit::new_rate_limit;
@@ -52,25 +51,22 @@ async fn main() {
         .and(with_endpoints(endpoints.clone()))
         .and_then(delete_endpoint);
 
-    let dynamic_routes = warp::path::full()
+    let dynamic_routes = warp::method()
+        .and(warp::path::full())
         .and(warp::query::<HashMap<String, String>>()
-            .map(Some) // Wrap in Some()
-            .or(warp::any().map(|| None)) // Use None when no query params
+            .map(Some)
+            .or(warp::any().map(|| None))
             .unify())
         .and(warp::header::optional::<String>(AUTHORIZATION.as_str()))
         .and(with_endpoints(endpoints.clone()))
         .and(with_rate_limiter(rate_limiter.clone()))
-        .and(warp::body::bytes().map(Some)
-            .or(warp::any().map(|| None)) // Use None when no query params
+        .and(warp::body::bytes()
+            .map(Some)
+            .or(warp::any().map(|| None))
             .unify())
+        .and(registry_filter.clone())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
-
-    let grpc_route = warp::post()
-        .and(warp::path!("grpc"))
-        .and(warp::body::json())
-        .and(registry_filter)
-        .and_then(grpc_handler);
     
     let static_files = warp::fs::dir("frontend/dist")
         .with(warp::log("static_files"));
@@ -78,7 +74,6 @@ async fn main() {
     let routes = register
         .or(list)
         .or(delete)
-        .or(grpc_route)
         .or(static_files)
         .or(dynamic_routes)
         .with(warp::cors().allow_any_origin())
