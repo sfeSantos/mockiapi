@@ -3,7 +3,6 @@ use warp::http::{HeaderValue, Response, StatusCode};
 use warp::{reply, Reply};
 use warp::http::header::CONTENT_TYPE;
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::Endpoint;
 use crate::models::grpc::GrpcMockRequest;
 
 async fn process_grpc_mock(
@@ -23,13 +22,8 @@ async fn process_grpc_mock(
 }
 pub async fn handle_grpc(
     body_str: &str,
-    endpoint: &Endpoint,
     registry: Arc<GrpcRegistry>,
 ) -> Option<Response<String>> {
-    if endpoint.file != "grpc" {
-        return None;
-    }
-
     let req = serde_json::from_str::<GrpcMockRequest>(body_str).ok()?;
     let (status, body) = process_grpc_mock(&req, &registry).await?;
 

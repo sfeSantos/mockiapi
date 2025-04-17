@@ -11,7 +11,7 @@ use crate::handlers::params::{get_body_from_request, get_params_from_request};
 use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{Endpoint, Endpoints, MethodNotAllowed, NotFound, Unauthorized};
+use crate::models::{Endpoint, Endpoints, InvalidGraphQLRequest, MethodNotAllowed, NotFound, Unauthorized};
 use crate::middlewares::rate_limit::{check_rate_limit, RateLimitTracker};
 use crate::utils::{add_possible_delay, reconstruct_full_url};
 
@@ -63,8 +63,10 @@ pub async fn serve_dynamic_response(
             }
 
             // Try gRPC
-            if let Some(response) = handle_grpc(body_str, &endpoint, grpc_registry).await {
+            if let Some(response) = handle_grpc(body_str, grpc_registry).await {
                 return Ok(response);
+            } else {
+                return Err(warp::reject::custom(InvalidGraphQLRequest));
             }
         }
     }

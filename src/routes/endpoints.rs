@@ -1,10 +1,11 @@
 use std::convert::Infallible;
+use std::sync::Arc;
 use warp::{reply, Filter, Rejection, Reply};
+use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::{Endpoints, MultipartHandler, NotFound};
 
-pub async fn register_endpoint(form: warp::multipart::FormData, endpoints: Endpoints) -> Result<impl Reply, Rejection> {
-    MultipartHandler::parse(form, endpoints).await?;
-
+pub async fn register_endpoint(form: warp::multipart::FormData, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<impl Reply, Rejection> {
+    MultipartHandler::parse(form, endpoints, grpc_registry).await?;
     Ok(reply::json(&"Registered successfully"))
 }
 

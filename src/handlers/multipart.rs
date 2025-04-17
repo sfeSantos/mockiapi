@@ -1,14 +1,17 @@
+use std::sync::Arc;
 use bytes::BufMut;
 use futures::{StreamExt, TryStreamExt};
 use tokio::fs;
 use uuid::Uuid;
 use warp::{Rejection};
 use warp::multipart::Part;
+use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::{Endpoint, Endpoints, FileError, InvalidMultipart, MultipartHandler, NotFound, RateLimit, Utf8Error};
+use crate::models::grpc::GrpcMockResponse;
 
 impl MultipartHandler {
     
-    pub async fn parse(form: warp::multipart::FormData, endpoints: Endpoints) -> Result<(), Rejection> {
+    pub async fn parse(form: warp::multipart::FormData, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<(), Rejection> {
         let mut path = None;
         let mut methods = None;
         let mut status_code = None;
@@ -19,6 +22,8 @@ impl MultipartHandler {
         let mut rate_limit = None;
         let mut with_dynamic_vars = None;
         let mut parts = form.into_stream();
+        let mut grpc_service = None;
+        let mut grpc_method = None;
         
         while let Some(Ok(part)) = parts.next().await {
             match part.name() {
@@ -47,7 +52,9 @@ impl MultipartHandler {
                 "with_dynamic_vars" => {
                     with_dynamic_vars = Some(Self::part_to_string(part).await?
                         .parse::<bool>().unwrap_or(false));
-                }
+                },
+                "grpcService" => grpc_service = Some(Self::part_to_string(part).await?),
+                "grpcRPC" => grpc_method = Some(Self::part_to_string(part).await?),
                 _ => {}
             }
         }
@@ -59,7 +66,7 @@ impl MultipartHandler {
         let file_name = file_name.ok_or_else(|| warp::reject::custom(NotFound))?;
         let delay = delay.unwrap_or(None);
 
-        fs::write(&file_name, file_data)
+        fs::write(&file_name, file_data.clone())
             .await
             .map_err(|_| warp::reject::custom(FileError))?;
         
@@ -72,6 +79,16 @@ impl MultipartHandler {
             rate_limit,
             with_dynamic_vars,
         };
+        
+        if let Some(grpc) = grpc_service {
+            let data = serde_json::from_slice(&file_data)
+                .map_err(|_| warp::reject::custom(Utf8Error))?;
+            grpc_registry.register_mock(&grpc, grpc_method.unwrap().as_str(), GrpcMockResponse{
+                output: data,
+                delay_ms: delay,
+                status: status_code,
+            }).await
+        }
 
         endpoints.lock().await.insert(path.clone(), endpoint);
         

@@ -20,7 +20,26 @@ impl GrpcRegistry {
     }
 
     pub async fn get_mock(&self, service: &str, method: &str) -> Option<GrpcMockResponse> {
-        let key = format!("{}.{}", service, method);
-        self.mocks.read().await.get(&key).cloned()
+        let registry = self.mocks.read().await;
+
+        let service_prefix = format!("{}.", service);
+        let mut service_exists = false;
+
+        for key in registry.keys() {
+            if key.starts_with(&service_prefix) {
+                service_exists = true;
+                if key == &format!("{}.{}", service, method) {
+                    return registry.get(key).cloned();
+                }
+            }
+        }
+
+        if !service_exists {
+            log::warn!("gRPC service '{}' not found", service);
+        } else {
+            log::warn!("gRPC method '{}' not found in service '{}'", method, service);
+        }
+
+        None
     }
 }
