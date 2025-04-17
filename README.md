@@ -37,6 +37,14 @@ Whether you're building web apps, mobile clients, or testing backend integration
 
 ## ⚙️ Installation & Setup
 
+## 📦 Latest Release
+
+Download pre-built binaries for your platform:
+
+- 🐧 [Linux (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-amd64)  
+- 🍎 [macOS (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64)  
+- 🪟 [Windows (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64)
+
 ### 🔧 Prerequisites
 
 - **Rust**: [Install Rust](https://www.rust-lang.org/tools/install)
