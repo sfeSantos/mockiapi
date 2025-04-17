@@ -31,6 +31,7 @@ Whether you're building web apps, mobile clients, or testing backend integration
 | 📊 Request Logging           | Logs every request with metadata                                           |
 | 🧪 GraphQL Support           | Define mock responses for queries and mutations                            |
 | 🧠 Dynamic Response Variables| Insert request values into your JSON response (e.g., path/query/header)    |
+🔌 gRPC Simulation            | Mock gRPC service calls using HTTP-based endpoints                         |
 
 ---
 
@@ -123,6 +124,32 @@ _Check `graphql.json` in uploads folder_
   }
 }
 ```
+### 1️⃣ Simulate a gRPC Call
+
+You can simulate gRPC service methods via HTTP by registering an endpoint with the following structure:
+
+**Example: `POST /grpc` &rarr; will be the default endpoint**
+
+Fill the form with the information required and register the following json:
+```json
+{
+  "id": "b123",
+  "title": "The Rust Programming Language",
+  "author": "Steve Klabnik"
+}
+```
+
+Then do a POST to /grpc with the following **request body**:
+
+```json
+{
+  "service": "com.example.BookService",
+  "rpc": "GetBook",
+  "request": { "id": "b123" }
+}
+```
+The response will be the contents of the json registered
+
 ## 🧠 Why Use This?
 
 | Benefit               | Description                                                                 |
