@@ -4,6 +4,8 @@ use log::info;
 use tokio::sync::Mutex;
 use warp::{Filter};
 use warp::http::header::AUTHORIZATION;
+use mockiapi::handlers::grpc::grpc_handler;
+use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::{Endpoints};
 use mockiapi::middlewares::rate_limit::new_rate_limit;
 use mockiapi::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint, with_endpoints};
@@ -15,6 +17,11 @@ async fn main() {
     env_logger::init();
     let endpoints: Endpoints = Arc::new(Mutex::new(HashMap::new()));
     let rate_limiter = new_rate_limit();
+    let registry = Arc::new(GrpcRegistry::new());
+    let registry_filter = warp::any().map({
+        let registry = Arc::clone(&registry);
+        move || Arc::clone(&registry)
+    });
 
     let log = warp::log::custom(|info| {
         info!("{} - {} {} {} [{}] {:?}",
@@ -58,6 +65,12 @@ async fn main() {
             .unify())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
+
+    let grpc_route = warp::post()
+        .and(warp::path!("grpc"))
+        .and(warp::body::json())
+        .and(registry_filter)
+        .and_then(grpc_handler);
     
     let static_files = warp::fs::dir("frontend/dist")
         .with(warp::log("static_files"));
@@ -65,6 +78,7 @@ async fn main() {
     let routes = register
         .or(list)
         .or(delete)
+        .or(grpc_route)
         .or(static_files)
         .or(dynamic_routes)
         .with(warp::cors().allow_any_origin())
