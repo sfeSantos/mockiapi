@@ -4,6 +4,7 @@ pub mod auth;
 pub mod graphql;
 pub mod multipart;
 pub mod grpc;
+pub mod websocket;
 
 pub use endpoint::*;
 pub use errors::*;

@@ -30,6 +30,7 @@ async fn test_non_existent_endpoint() {
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
         .and(registry_filter.clone())
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -55,6 +56,7 @@ async fn test_valid_request_without_auth() {
             authentication: None,
             delay: None,
             with_dynamic_vars: None,
+            websocket_behavior: None
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -73,6 +75,7 @@ async fn test_valid_request_without_auth() {
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
         .and(registry_filter.clone())
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -98,6 +101,7 @@ async fn test_valid_request_with_basic_auth() {
             authentication: Some(String::from("{\"username\": \"user\", \"password\": \"pass\"}")),
             delay: None,
             with_dynamic_vars: None,
+            websocket_behavior: None
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -116,6 +120,7 @@ async fn test_valid_request_with_basic_auth() {
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
         .and(registry_filter.clone())
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response);
 
     let res = request()
@@ -141,6 +146,7 @@ async fn test_invalid_authentication() {
             authentication: Some(String::from("{\"username\": \"user1\", \"password\": \"password1\"}")),
             delay: None,
             with_dynamic_vars: None,
+            websocket_behavior: None
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -154,11 +160,12 @@ async fn test_invalid_authentication() {
     let filter = warp::method()
         .and(warp::path::full())
         .and(warp::any().map(|| None))
-        .and(warp::any().map(|| None))
+        .and(warp::header::optional::<String>("authorization"))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
         .and(registry_filter.clone())
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -185,6 +192,7 @@ async fn test_valid_request_with_bearer_auth() {
             authentication: Some(String::from("{\"tokenData\": \"SOME_LONG_TOKEN\"}")),
             delay: None,
             with_dynamic_vars: None,
+            websocket_behavior: None
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -198,12 +206,14 @@ async fn test_valid_request_with_bearer_auth() {
     let filter = warp::method()
         .and(warp::path::full())
         .and(warp::any().map(|| None))
-        .and(warp::any().map(|| Some("Bearer SOME_LONG_TOKEN".to_string())))
+        .and(warp::header::optional::<String>("authorization"))
         .and(warp::any().map(move || endpoints.clone()))
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
         .and(registry_filter.clone())
-        .and_then(serve_dynamic_response);
+        .and(warp::any().map(|| None))
+        .and_then(serve_dynamic_response)
+        .recover(handle_rejection);
 
     let res = request()
         .method("GET")
@@ -231,6 +241,7 @@ async fn test_rate_limit_exceeded() {
             authentication: None,
             delay: None,
             with_dynamic_vars: None,
+            websocket_behavior: None
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -249,6 +260,7 @@ async fn test_rate_limit_exceeded() {
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
         .and(registry_filter.clone())
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
     // First request should pass
@@ -282,6 +294,7 @@ async fn test_request_with_delay() {
             authentication: None,
             delay: Some(2000), // 2 seconds delay
             with_dynamic_vars: None,
+            websocket_behavior: None
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -303,6 +316,7 @@ async fn test_request_with_delay() {
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
         .and(registry_filter.clone())
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response);
 
     let start_time = Instant::now();
@@ -330,6 +344,7 @@ async fn test_extract_params_from_request() {
             authentication: None,
             delay: None,
             with_dynamic_vars: Some(true),
+            websocket_behavior: None
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -348,6 +363,7 @@ async fn test_extract_params_from_request() {
         .and(warp::any().map(move || rate_limiter.clone()))
         .and(warp::any().map(|| None))
         .and(registry_filter.clone())
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 
@@ -381,6 +397,7 @@ async fn test_extract_params_from_request_body() {
             authentication: None,
             delay: None,
             with_dynamic_vars: Some(true),
+            websocket_behavior: None
         },
     );
     let endpoints = Arc::new(Mutex::new(endpoints_map));
@@ -401,6 +418,7 @@ async fn test_extract_params_from_request_body() {
             .or(warp::any().map(|| None)) // Use None when no query params
             .unify())
         .and(registry_filter.clone())
+        .and(warp::any().map(|| None))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
 

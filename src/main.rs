@@ -66,6 +66,7 @@ async fn main() {
             .or(warp::any().map(|| None))
             .unify())
         .and(registry_filter.clone())
+        .and(warp::ws().map(Some).or(warp::any().map(|| None)).unify())
         .and_then(serve_dynamic_response)
         .recover(handle_rejection);
     

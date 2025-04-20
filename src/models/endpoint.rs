@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+use crate::models::websocket::WebSocketBehavior;
 
 pub type Endpoints = Arc<Mutex<HashMap<String, Endpoint>>>;
 
@@ -15,6 +16,7 @@ pub struct Endpoint {
     pub delay: Option<u64>,
     pub rate_limit: Option<RateLimit>,
     pub with_dynamic_vars: Option<bool>,
+    pub websocket_behavior: Option<WebSocketBehavior>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

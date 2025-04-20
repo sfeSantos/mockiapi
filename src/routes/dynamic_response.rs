@@ -3,15 +3,17 @@ use std::sync::Arc;
 use warp::{Rejection, Reply};
 use warp::http::header::CONTENT_TYPE;
 use warp::http::{HeaderValue, Method, Response, StatusCode};
+use warp::hyper::Body;
 use warp::path::FullPath;
 use warp::hyper::body::Bytes;
 use crate::handlers::graphql::{handle_graphql};
 use crate::handlers::grpc::{handle_grpc};
 use crate::handlers::params::{get_body_from_request, get_params_from_request};
+use crate::handlers::websocket::handle_websocket;
 use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{Endpoint, Endpoints, InvalidGraphQLRequest, MethodNotAllowed, NotFound, Unauthorized};
+use crate::models::{Endpoint, Endpoints, MethodNotAllowed, NotFound, Unauthorized};
 use crate::middlewares::rate_limit::{check_rate_limit, RateLimitTracker};
 use crate::utils::{add_possible_delay, reconstruct_full_url};
 
@@ -24,7 +26,8 @@ pub async fn serve_dynamic_response(
     rate_limiter: RateLimitTracker,
     body: Option<Bytes>,
     grpc_registry: Arc<GrpcRegistry>,
-) -> Result<impl Reply, Rejection> {
+    ws: Option<warp::ws::Ws>,
+) -> Result<Box<dyn Reply>, Rejection> {
     let full_url = reconstruct_full_url(path.as_str(), &query_params);
 
     let endpoint = {
@@ -48,6 +51,10 @@ pub async fn serve_dynamic_response(
         add_possible_delay(&endpoint).await;
     }
 
+    if let (Some(ws), Some(ws_behavior)) = (ws, endpoint.websocket_behavior.clone()) {
+        return Ok(Box::new(ws.on_upgrade(move |socket| handle_websocket(socket, ws_behavior))));
+    }
+
     // Read file content
     let json_file_content = match tokio::fs::read_to_string(&endpoint.file).await {
         Ok(content) => content,
@@ -59,14 +66,12 @@ pub async fn serve_dynamic_response(
         if let Ok(body_str) = std::str::from_utf8(body_bytes) {
             // Try GraphQL
             if let Some(response) = handle_graphql(body_str, &endpoint, &json_file_content) {
-                return Ok(response);
+                return Ok(Box::new(response));
             }
 
             // Try gRPC
-            if let Some(response) = handle_grpc(body_str, grpc_registry).await {
-                return Ok(response);
-            } else {
-                return Err(warp::reject::custom(InvalidGraphQLRequest));
+            if let Some(response) = handle_grpc(body_str, grpc_registry.clone()).await {
+                return Ok(Box::new(response));
             }
         }
     }
@@ -76,13 +81,13 @@ pub async fn serve_dynamic_response(
     let status_code = StatusCode::from_u16(endpoint.status_code.unwrap_or(200))
         .unwrap_or(StatusCode::NOT_FOUND);
 
-    let response = Response::builder()
+    let response: Response<Body> = Response::builder()
         .status(status_code)
         .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
         .body(response_body.into())
         .unwrap();
     
-    Ok(response)
+    Ok(Box::new(response))
 }
 
 fn maybe_replace_variables(

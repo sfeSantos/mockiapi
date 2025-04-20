@@ -78,6 +78,7 @@ impl MultipartHandler {
             delay,
             rate_limit,
             with_dynamic_vars,
+            websocket_behavior: None,
         };
         
         if let Some(grpc) = grpc_service {
