@@ -1,6 +1,7 @@
 use std::sync::{Arc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+use crate::models::AuthData;
 use crate::routing::EndpointStore;
 
 pub type Endpoints = Arc<Mutex<EndpointStore>>;
@@ -25,7 +26,7 @@ pub struct Endpoint {
     pub file: String,
     pub status_code: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub authentication: Option<String>,
+    pub authentication: Option<AuthData>,
     pub delay: Option<u64>,
     pub rate_limit: Option<RateLimit>,
     pub with_dynamic_vars: Option<bool>,

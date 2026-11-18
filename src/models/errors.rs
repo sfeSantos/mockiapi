@@ -1,3 +1,4 @@
+use warp::http::StatusCode;
 use warp::reject::Reject;
 
 #[derive(Debug)]
@@ -13,25 +14,8 @@ pub struct Unauthorized;
 impl Reject for Unauthorized {}
 
 #[derive(Debug)]
-pub struct InvalidMultipart;
-impl Reject for InvalidMultipart {}
-
-#[derive(Debug)]
-pub struct FileError;
-impl Reject for FileError {}
-
-#[derive(Debug)]
-pub struct Utf8Error;
-impl Reject for Utf8Error {}
-
-#[derive(Debug)]
 pub struct InvalidGraphQLRequest;
 impl Reject for InvalidGraphQLRequest {}
-
-/// A registration form field that is missing or malformed, with the reason shown to the client.
-#[derive(Debug)]
-pub struct InvalidRegistration(pub &'static str);
-impl Reject for InvalidRegistration {}
 
 #[derive(Debug)]
 pub struct InvalidGrpcRequest;
@@ -40,3 +24,28 @@ impl Reject for InvalidGrpcRequest {}
 #[derive(Debug)]
 pub struct MethodNotAllowed;
 impl Reject for MethodNotAllowed {}
+
+/// Why an endpoint could not be registered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegistrationError {
+    /// A form field is missing or malformed. The text is shown to the client.
+    Invalid(&'static str),
+    /// The uploaded file could not be written to disk.
+    Storage,
+}
+
+impl RegistrationError {
+    pub fn status(self) -> StatusCode {
+        match self {
+            RegistrationError::Invalid(_) => StatusCode::BAD_REQUEST,
+            RegistrationError::Storage => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    pub fn reason(self) -> &'static str {
+        match self {
+            RegistrationError::Invalid(reason) => reason,
+            RegistrationError::Storage => "the response file could not be stored",
+        }
+    }
+}

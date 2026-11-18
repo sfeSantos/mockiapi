@@ -24,16 +24,16 @@ pub fn admin_routes(
         .and(warp::multipart::form().max_length(MAX_UPLOAD_BYTES))
         .and(with_endpoints(endpoints.clone()))
         .and(with_grpc_registry(Arc::clone(&grpc_registry)))
-        .and_then(register_endpoint);
+        .then(register_endpoint);
     let list = warp::get()
         .and(warp::path!("list"))
         .and(with_endpoints(endpoints.clone()))
-        .and_then(list_endpoint);
+        .then(list_endpoint);
     let delete = warp::delete()
         .and(warp::path!("delete" / String))
         .and(with_endpoints(endpoints))
         .and(with_grpc_registry(grpc_registry))
-        .and_then(delete_endpoint);
+        .then(delete_endpoint);
 
     register.or(list).or(delete)
 }

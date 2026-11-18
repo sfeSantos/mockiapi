@@ -1,56 +1,90 @@
 use std::convert::Infallible;
 use std::sync::Arc;
-use warp::{reply, Filter, Rejection, Reply};
-use crate::middlewares::grpc_registry::GrpcRegistry;
+use tokio::fs;
 use warp::http::StatusCode;
-use crate::models::{EndpointKind, Endpoints, InvalidRegistration, MultipartHandler, NotFound};
+use warp::multipart::FormData;
+use warp::{reply, Filter, Reply};
+use crate::handlers::multipart::RegistrationForm;
+use crate::middlewares::grpc_registry::GrpcRegistry;
+use crate::models::{EndpointKind, Endpoints, RegistrationError};
 
-pub async fn register_endpoint(form: warp::multipart::FormData, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<impl Reply, Rejection> {
-    // A rejection here would fall through to the mock catch-all and come back as a 404,
-    // so a bad form is answered directly.
-    match MultipartHandler::parse(form, endpoints, grpc_registry).await {
-        Ok(()) => Ok(reply::with_status(reply::json(&"Registered successfully"), StatusCode::OK)),
-        Err(rejection) => match rejection.find::<InvalidRegistration>() {
-            Some(InvalidRegistration(reason)) => {
-                Ok(reply::with_status(reply::json(reason), StatusCode::BAD_REQUEST))
-            }
-            None => Err(rejection),
-        },
+pub async fn register_endpoint(
+    form: FormData,
+    endpoints: Endpoints,
+    grpc_registry: Arc<GrpcRegistry>,
+) -> impl Reply {
+    // The refusal is answered here: a rejection would fall through to the mock catch-all.
+    match register(form, &endpoints, &grpc_registry).await {
+        Ok(()) => reply::with_status(reply::json(&"Registered successfully"), StatusCode::OK),
+        Err(error) => reply::with_status(reply::json(&error.reason()), error.status()),
     }
 }
 
-pub async fn list_endpoint(endpoints: Endpoints) -> Result<impl Reply, Rejection> {
+async fn register(
+    form: FormData,
+    endpoints: &Endpoints,
+    grpc_registry: &GrpcRegistry,
+) -> Result<(), RegistrationError> {
+    let registration = RegistrationForm::read(form).await?.validate()?;
+
+    fs::write(&registration.endpoint.file, &registration.upload)
+        .await
+        .map_err(|_| RegistrationError::Storage)?;
+
+    if let Some(grpc) = registration.grpc {
+        grpc_registry.register_mock(&grpc.service, &grpc.rpc, grpc.response);
+    }
+
+    let replaced = endpoints.lock().await.insert(registration.path, registration.endpoint);
+
+    // Registering a path again supersedes its previous upload.
+    if let Some(replaced) = replaced {
+        remove_upload(&replaced.endpoint.file).await;
+    }
+
+    Ok(())
+}
+
+pub async fn list_endpoint(endpoints: Endpoints) -> impl Reply {
     let store = endpoints.lock().await;
 
-    Ok(reply::json(&*store))
+    reply::json(&*store)
 }
 
-pub async fn delete_endpoint(path_to_delete: String, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<impl Reply, Rejection> {
-    let decoded_path = urlencoding::decode(&path_to_delete)
-        .map_err(|_| warp::reject::custom(NotFound))?
-        .into_owned();
+pub async fn delete_endpoint(
+    path_to_delete: String,
+    endpoints: Endpoints,
+    grpc_registry: Arc<GrpcRegistry>,
+) -> impl Reply {
+    let removed = match urlencoding::decode(&path_to_delete) {
+        Ok(decoded_path) => endpoints.lock().await.remove(&decoded_path),
+        Err(_) => None,
+    };
+    let Some(route) = removed else {
+        return reply::with_status("Resource not found", StatusCode::NOT_FOUND);
+    };
 
-    let mut store = endpoints.lock().await;
+    remove_upload(&route.endpoint.file).await;
 
-    if let Some(route) = store.remove(&decoded_path) {
-        let endpoint = &route.endpoint;
-        // `file` already holds the full relative path the upload was written to.
-        if tokio::fs::remove_file(&endpoint.file).await.is_err() {
-            log::info!("Failed to delete file: {}", endpoint.file);
-        }
+    // The registry is shared by every gRPC endpoint, so its mocks go away with the last one.
+    let is_last_grpc_endpoint = route.endpoint.kind == EndpointKind::Grpc
+        && !endpoints.lock()
+            .await
+            .iter()
+            .any(|remaining| remaining.endpoint.kind == EndpointKind::Grpc);
 
-        // The registry is shared by every gRPC endpoint, so its mocks go away with the last one.
-        let is_last_grpc_endpoint = endpoint.kind == EndpointKind::Grpc
-            && !store.iter().any(|remaining| remaining.endpoint.kind == EndpointKind::Grpc);
-
-        if is_last_grpc_endpoint {
-            grpc_registry.clear();
-        }
-
-        return Ok(reply::with_status("Deleted successfully", StatusCode::OK));
+    if is_last_grpc_endpoint {
+        grpc_registry.clear();
     }
 
-    Err(warp::reject::custom(NotFound))
+    reply::with_status("Deleted successfully", StatusCode::OK)
+}
+
+/// `file` holds the full relative path the upload was written to.
+async fn remove_upload(file: &str) {
+    if fs::remove_file(file).await.is_err() {
+        log::info!("Failed to delete file: {}", file);
+    }
 }
 
 pub fn with_endpoints(endpoints: Endpoints) -> impl Filter<Extract = (Endpoints,), Error = Infallible> + Clone {

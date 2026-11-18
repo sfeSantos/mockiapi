@@ -1,55 +1,83 @@
-use base64::{Engine as _, engine::{general_purpose}};
+use base64::{Engine as _, engine::general_purpose};
 use crate::models::AuthData;
 
-/// Function to validate the authorization based on the `auth_type` and `auth_data`
-pub fn validate_auth(auth_data: Option<String>, auth_header: Option<String>) -> bool {
-    if let Some(header) = auth_header {
-        if header.starts_with("Basic ") {
-            return validate_basic_auth(auth_data, header);
-        }
+/// Checks an `Authorization` header against the credentials of an endpoint.
+pub fn validate_auth(expected: &AuthData, auth_header: Option<&str>) -> bool {
+    let Some(header) = auth_header else {
+        return false;
+    };
 
-        if header.starts_with("Bearer ") {
-            return validate_bearer_token(auth_data, header);
-        }
+    if let Some(encoded_credentials) = header.strip_prefix("Basic ") {
+        return validate_basic_auth(expected, encoded_credentials);
+    }
+
+    if let Some(token) = header.strip_prefix("Bearer ") {
+        return expected.token_data.as_deref() == Some(token);
     }
 
     false
 }
 
-/// Function to validate Basic Authentication
-fn validate_basic_auth(auth_data: Option<String>, header: String) -> bool {
-    if let Some(auth_data) = auth_data {
-        let encoded_credentials = header.trim_start_matches("Basic ").to_string();
-        if let Ok(decoded) = general_purpose::STANDARD.decode(&encoded_credentials) {
-            if let Ok(creds) = String::from_utf8(decoded) {
-                let mut parts = creds.split(':');
-                if let (Some(username), Some(password)) = (parts.next(), parts.next()) {
-                    if let Ok(auth_struct) = serde_json::from_str::<AuthData>(&auth_data) {
-                        // Now check if the fields are Some and match
-                        let username_matches = auth_struct.username
-                            .map_or(false, |u| u == username);
-                        let password_matches = auth_struct.password
-                            .map_or(false, |p| p == password);
+fn validate_basic_auth(expected: &AuthData, encoded_credentials: &str) -> bool {
+    let Ok(decoded) = general_purpose::STANDARD.decode(encoded_credentials) else {
+        return false;
+    };
+    let Ok(credentials) = std::str::from_utf8(&decoded) else {
+        return false;
+    };
+    // Only the first colon separates the two: a password may contain more of them.
+    let Some((username, password)) = credentials.split_once(':') else {
+        return false;
+    };
 
-                        return username_matches && password_matches;
-                    }
-                }
-            }
-        }
-    }
-    false
+    expected.username.as_deref() == Some(username) && expected.password.as_deref() == Some(password)
 }
 
-/// Function to validate Bearer Token Authentication
-fn validate_bearer_token(auth_data: Option<String>, header: String) -> bool {
-    if let Some(auth_data) = auth_data {
-        if let Ok(auth_struct) = serde_json::from_str::<AuthData>(&auth_data) {
-            if let Some(expected_token) = auth_struct.token_data {
-                let token = header.trim_start_matches("Bearer ").to_string();
-                return token == expected_token;
-            }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn basic(username: &str, password: &str) -> AuthData {
+        AuthData {
+            username: Some(username.to_string()),
+            password: Some(password.to_string()),
+            token_data: None,
         }
     }
 
-    false
+    fn header(credentials: &str) -> String {
+        format!("Basic {}", general_purpose::STANDARD.encode(credentials))
+    }
+
+    #[test]
+    fn basic_credentials_must_match() {
+        let expected = basic("user", "pass");
+
+        assert!(validate_auth(&expected, Some(&header("user:pass"))));
+        assert!(!validate_auth(&expected, Some(&header("user:other"))));
+        assert!(!validate_auth(&expected, Some(&header("userpass"))));
+        assert!(!validate_auth(&expected, Some("Basic not-base64!")));
+        assert!(!validate_auth(&expected, None));
+    }
+
+    #[test]
+    fn password_may_contain_a_colon() {
+        let expected = basic("user", "pa:ss");
+
+        assert!(validate_auth(&expected, Some(&header("user:pa:ss"))));
+    }
+
+    #[test]
+    fn bearer_token_must_match() {
+        let expected = AuthData { token_data: Some("SECRET".to_string()), ..AuthData::default() };
+
+        assert!(validate_auth(&expected, Some("Bearer SECRET")));
+        assert!(!validate_auth(&expected, Some("Bearer OTHER")));
+        assert!(!validate_auth(&expected, Some("SECRET")));
+    }
+
+    #[test]
+    fn credentials_of_the_other_scheme_are_not_accepted() {
+        assert!(!validate_auth(&basic("user", "pass"), Some("Bearer pass")));
+    }
 }

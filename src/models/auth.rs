@@ -1,9 +1,11 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+/// Credentials an endpoint asks for. Basic auth uses the username and password, a bearer
+/// token is compared with `token_data`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthData {
-    pub(crate) username: Option<String>,
-    pub(crate) password: Option<String>,
-    pub(crate) token_data: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub token_data: Option<String>,
 }
