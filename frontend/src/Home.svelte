@@ -136,7 +136,7 @@
 
                 <div class="form-group" id="limit">
                     <label for="limit">Rate Limit</label>
-                    <input type="text" bind:value={$rate_limit} />
+                    <input type="text" bind:value={$rate_limit} placeholder="10/1000 (requests / window in ms)" />
                 </div>
 
                 {#if selectedTab === 'REST'}
