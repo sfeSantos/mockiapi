@@ -1,12 +1,11 @@
 use std::time::Duration;
 use tokio::time::sleep;
 use log::info;
-use warp::{Filter, Rejection, Reply};
+use warp::{Rejection, Reply};
 use warp::http::header::CONTENT_TYPE;
 use warp::http::{HeaderValue, Response, StatusCode};
 use warp::hyper::Body;
 use crate::models::{Endpoint, InvalidGrpcRequest, InvalidGraphQLRequest, MethodNotAllowed, NotFound, RateLimited, Unauthorized};
-use crate::middlewares::rate_limit::RateLimitTracker;
 
 /// Adds a delay to the request handling if the `Endpoint` specifies a delay.
 ///
@@ -27,28 +26,6 @@ pub async fn add_possible_delay(endpoint: &Endpoint) {
         info!("⏳ Applying delay of {} ms", delay);
         sleep(Duration::from_millis(delay)).await;
     }
-}
-
-/// Creates a `warp` filter that provides access to a shared `RateLimitTracker`.
-///
-/// This function returns a `warp::Filter` that, when used in a route, provides the `RateLimitTracker`
-/// for rate-limiting purposes. It clones the provided `RateLimitTracker` for each request, allowing
-/// the rate limiter to be shared across multiple routes and requests.
-///
-/// # Arguments
-///
-/// * `rate_limiter` - A `RateLimitTracker` object used to track and enforce rate limits.
-///
-/// # Returns
-///
-/// Returns a `warp::Filter` that extracts the `RateLimitTracker` from the filter context, allowing it
-/// to be used in route handlers.
-///
-/// # Notes
-/// This filter ensures that the `RateLimitTracker` is cloned and passed to the handler for every request.
-pub fn with_rate_limiter(rate_limiter: RateLimitTracker) -> 
-           impl Filter<Extract = (RateLimitTracker,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || rate_limiter.clone())
 }
 
 /// Handles rejections in the Warp web framework by returning appropriate HTTP responses.

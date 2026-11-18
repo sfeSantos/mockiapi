@@ -5,7 +5,6 @@ use warp::{Filter};
 use mockiapi::handlers::multipart::UPLOADS_DIR;
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::{Endpoints};
-use mockiapi::middlewares::rate_limit::new_rate_limit;
 use mockiapi::routes::{admin_routes, mock_routes};
 use mockiapi::routing::EndpointStore;
 
@@ -19,7 +18,6 @@ async fn main() {
         .expect("the uploads directory could not be created");
 
     let endpoints: Endpoints = Arc::new(Mutex::new(EndpointStore::default()));
-    let rate_limiter = new_rate_limit();
     let registry = Arc::new(GrpcRegistry::new());
     let log = warp::log::custom(|info| {
         info!("{} - {} {} {} [{}] {:?}",
@@ -39,7 +37,7 @@ async fn main() {
 
     let routes = admin_routes(endpoints.clone(), Arc::clone(&registry))
         .or(static_files)
-        .or(mock_routes(endpoints, rate_limiter, registry))
+        .or(mock_routes(endpoints, registry))
         .with(warp::cors().allow_any_origin())
         .with(log);
 

@@ -13,7 +13,6 @@ use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
 use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::{Endpoint, EndpointKind, Endpoints, InvalidGrpcRequest, MethodNotAllowed, NotFound, Unauthorized};
-use crate::middlewares::rate_limit::{check_rate_limit, RateLimitTracker};
 use crate::routing::Route;
 use crate::utils::{add_possible_delay, json_response};
 
@@ -23,7 +22,6 @@ pub async fn serve_dynamic_response(
     query: String,
     auth_header: Option<String>,
     endpoints: Endpoints,
-    rate_limiter: RateLimitTracker,
     body: Option<Bytes>,
     grpc_registry: Arc<GrpcRegistry>,
 ) -> Result<impl Reply, Rejection> {
@@ -44,7 +42,9 @@ pub async fn serve_dynamic_response(
     }
 
     // The limit belongs to the registered route, whatever values fill its placeholders.
-    check_rate_limit(route.path.clone(), method.as_str(), endpoint.rate_limit.as_ref(), rate_limiter.clone()).await?;
+    if let Some(limiter) = &route.limiter {
+        limiter.check(&method).map_err(warp::reject::custom)?;
+    }
 
     // A gRPC mock carries its own delay, which the gRPC handler applies.
     if endpoint.kind != EndpointKind::Grpc {

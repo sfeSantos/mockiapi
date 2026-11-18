@@ -3,11 +3,10 @@ use std::sync::Arc;
 use warp::http::header::AUTHORIZATION;
 use warp::{Filter, Rejection, Reply};
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::middlewares::rate_limit::RateLimitTracker;
 use crate::models::Endpoints;
 use crate::routes::dynamic_response::serve_dynamic_response;
 use crate::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint, with_endpoints};
-use crate::utils::{handle_rejection, with_rate_limiter};
+use crate::utils::handle_rejection;
 
 pub mod endpoints;
 pub mod dynamic_response;
@@ -41,7 +40,6 @@ pub fn admin_routes(
 /// Catch-all filter that answers every registered mock endpoint.
 pub fn mock_routes(
     endpoints: Endpoints,
-    rate_limiter: RateLimitTracker,
     grpc_registry: Arc<GrpcRegistry>,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     let raw_query = warp::query::raw()
@@ -57,7 +55,6 @@ pub fn mock_routes(
         .and(raw_query)
         .and(warp::header::optional::<String>(AUTHORIZATION.as_str()))
         .and(with_endpoints(endpoints))
-        .and(with_rate_limiter(rate_limiter))
         .and(optional_body)
         .and(with_grpc_registry(grpc_registry))
         .and_then(serve_dynamic_response)
