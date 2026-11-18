@@ -6,16 +6,16 @@ use warp::http::{HeaderValue, Method, Response, StatusCode};
 use warp::path::FullPath;
 use warp::hyper::body::Bytes;
 use warp::hyper::Body;
-use crate::handlers::graphql::{handle_graphql};
+use crate::handlers::graphql::process_graphql;
 use crate::handlers::grpc::{handle_grpc};
 use crate::handlers::params::get_body_from_request;
 use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{EndpointKind, Endpoints, InvalidGrpcRequest, InvalidGraphQLRequest, MethodNotAllowed, NotFound, Unauthorized};
+use crate::models::{Endpoint, EndpointKind, Endpoints, InvalidGrpcRequest, MethodNotAllowed, NotFound, Unauthorized};
 use crate::middlewares::rate_limit::{check_rate_limit, RateLimitTracker};
 use crate::routing::Route;
-use crate::utils::add_possible_delay;
+use crate::utils::{add_possible_delay, json_response};
 
 pub async fn serve_dynamic_response(
     method: Method,
@@ -59,9 +59,7 @@ pub async fn serve_dynamic_response(
 
     // The protocol is known since registration, so the body is never sniffed.
     let response = match endpoint.kind {
-        EndpointKind::GraphQl => handle_graphql(body_as_str(&body), endpoint, &json_file_content)
-            .ok_or_else(|| warp::reject::custom(InvalidGraphQLRequest))?
-            .map(Body::from),
+        EndpointKind::GraphQl => graphql_response(endpoint, &json_file_content, body_as_str(&body))?,
         EndpointKind::Grpc => handle_grpc(body.as_deref().unwrap_or_default(), &grpc_registry)
             .await
             .ok_or_else(|| warp::reject::custom(InvalidGrpcRequest))?,
@@ -76,6 +74,18 @@ fn body_as_str(body: &Option<Bytes>) -> &str {
     body.as_deref()
         .and_then(|bytes| std::str::from_utf8(bytes).ok())
         .unwrap_or_default()
+}
+
+fn graphql_response(endpoint: &Endpoint, json_file_content: &str, body: &str) -> Result<Response<Body>, Rejection> {
+    let mock = serde_json::from_str(json_file_content)
+        .map_err(|_| warp::reject::custom(NotFound))?;
+    let answer = process_graphql(body, &mock)
+        .map_err(warp::reject::custom)?
+        .ok_or_else(|| warp::reject::custom(NotFound))?;
+    let status_code = StatusCode::from_u16(endpoint.status_code.unwrap_or(200))
+        .unwrap_or(StatusCode::OK);
+
+    Ok(json_response(status_code, answer.to_string()))
 }
 
 fn rest_response(

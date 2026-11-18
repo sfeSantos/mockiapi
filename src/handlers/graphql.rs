@@ -1,140 +1,76 @@
-use std::collections::HashSet;
+use std::borrow::Cow;
 use graphql_parser::parse_query;
 use graphql_parser::query::{Definition, OperationDefinition, Selection, SelectionSet};
-use serde_json::Value;
-use warp::http::{HeaderValue, Response, StatusCode};
-use warp::http::header::CONTENT_TYPE;
-use warp::Rejection;
-use crate::models::{Endpoint, GraphQLRequest, InvalidGraphQLRequest};
+use serde::Deserialize;
+use serde_json::{json, Map, Value};
+use crate::models::InvalidGraphQLRequest;
 
-pub fn handle_graphql(
-    body_str: &str,
-    endpoint: &Endpoint,
-    json_file_content: &str,
-) -> Option<Response<String>> {
-    if body_str.contains("\"query\"") {
-        if let Ok(Some(gql_data)) = process_graphql(body_str, json_file_content) {
-            let status_code = StatusCode::from_u16(endpoint.status_code.unwrap_or(200))
-                .unwrap_or(StatusCode::OK);
-            let response = Response::builder()
-                .status(status_code)
-                .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
-                .body(gql_data.into())
-                .ok()?;
-            return Some(response);
-        }
-    }
-    None
+#[derive(Deserialize)]
+struct GraphQLRequest<'a> {
+    #[serde(borrow)]
+    query: Cow<'a, str>,
 }
 
-/// Extract the operation name and load the mocked data
-pub fn process_graphql(body: &str, json_data: &str) -> Result<Option<String>, Rejection> {
-    // Parse the GraphQL request body
-    let gql_req: GraphQLRequest = serde_json::from_str(body)
-        .map_err(|_| warp::reject::custom(InvalidGraphQLRequest))?;
-
-    // Parse the JSON mock
-    let json: Value = serde_json::from_str(json_data)
-        .map_err(|_| warp::reject::custom(InvalidGraphQLRequest))?;
-
-    // Extract operation name from the query
-    let operation_name = extract_operation_name(&gql_req.query)
-        .ok_or_else(|| warp::reject::custom(InvalidGraphQLRequest))?;
-
-    let requested_fields = extract_requested_fields(&gql_req.query)
-        .ok_or_else(|| warp::reject::custom(InvalidGraphQLRequest))?;
-
-    // Check if it's a query or mutation
-    let is_query = gql_req.query.trim_start().starts_with("query");
-    let is_mutation = gql_req.query.trim_start().starts_with("mutation");
-
-    // Try to get the relevant mock data
-    let maybe_target = if is_query {
-        json.get("query").and_then(|q| q.get(&operation_name))
-    } else if is_mutation {
-        json.get("mutation").and_then(|m| m.get(&operation_name))
-    } else {
-        None
+/// Answers a GraphQL request from a mock document shaped as
+/// `{ "query": { "<operation>": { "data": ... } }, "mutation": { ... } }`.
+///
+/// Returns `Ok(None)` when the document has no mock for the named operation, and an
+/// error when the body is not a named query or mutation.
+pub fn process_graphql(body: &str, mock: &Value) -> Result<Option<Value>, InvalidGraphQLRequest> {
+    let request: GraphQLRequest = serde_json::from_str(body).map_err(|_| InvalidGraphQLRequest)?;
+    let document = parse_query::<&str>(&request.query).map_err(|_| InvalidGraphQLRequest)?;
+    let operation = document.definitions
+        .iter()
+        .find_map(|definition| match definition {
+            Definition::Operation(operation) => Some(operation),
+            Definition::Fragment(_) => None,
+        })
+        .ok_or(InvalidGraphQLRequest)?;
+    let (section, name, selection_set) = match operation {
+        OperationDefinition::Query(query) => ("query", query.name, &query.selection_set),
+        OperationDefinition::Mutation(mutation) => ("mutation", mutation.name, &mutation.selection_set),
+        OperationDefinition::Subscription(_) | OperationDefinition::SelectionSet(_) => {
+            return Err(InvalidGraphQLRequest);
+        }
     };
+    let name = name.ok_or(InvalidGraphQLRequest)?;
 
-    let Some(target_data) = maybe_target else {
+    let Some(operation_mock) = mock.get(section).and_then(|operations| operations.get(name)) else {
         return Ok(None);
     };
+    let data = match operation_mock.get("data") {
+        Some(data @ Value::Object(_)) => select(data, selection_set),
+        _ => Value::Object(Map::new()),
+    };
 
-    // Filter by requested fields
-    let mut filtered_data = serde_json::Map::new();
-    if let Some(obj) = target_data.get("data")
-        .and_then(|v| v.as_object()) {
-        for field in &requested_fields {
-            if let Some(value) = obj.get(field) {
-                filtered_data.insert(field.clone(), value.clone());
-            }
-        }
-    }
-
-    let final_json = serde_json::json!({
-        "data": filtered_data
-    });
-
-    let result = serde_json::to_string(&final_json)
-        .map_err(|_| warp::reject::custom(InvalidGraphQLRequest))?;
-
-    Ok(Some(result))
+    Ok(Some(json!({ "data": data })))
 }
 
-fn extract_operation_name(query: &str) -> Option<String> {
-    let ast = parse_query::<&str>(query).ok();
-    if let Some(ast) = ast {
-        for definition in ast.definitions {
-            if let Definition::Operation(OperationDefinition::Query(q)) = definition {
-                return q.name.map(|s| s.to_string());
-            } else if let Definition::Operation(OperationDefinition::Mutation(m)) = definition {
-                return m.name.map(|s| s.to_string());
-            }
-        }
+/// Keeps only the fields the selection asks for, following nested selections into
+/// objects and into every element of a list.
+fn select<'query>(value: &Value, selection_set: &SelectionSet<'query, &'query str>) -> Value {
+    match value {
+        Value::Object(fields) => Value::Object(selection_set.items
+            .iter()
+            .filter_map(|selection| match selection {
+                Selection::Field(field) => fields
+                    .get(field.name)
+                    .map(|field_value| (field.name.to_string(), select_field(field_value, &field.selection_set))),
+                Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
+            })
+            .collect()),
+        Value::Array(items) => Value::Array(items
+            .iter()
+            .map(|item| select(item, selection_set))
+            .collect()),
+        scalar => scalar.clone(),
     }
-
-    // Fallback: Try simple regex
-    let tokens: Vec<&str> = query.trim().split_whitespace().collect();
-    if tokens.len() >= 2 && (tokens[0] == "query" || tokens[0] == "mutation") {
-        return Some(tokens[1].to_string());
-    }
-
-    None
 }
 
-/// Returns `None` when the query is not valid GraphQL.
-fn extract_requested_fields(query: &str) -> Option<HashSet<String>> {
-    let ast = parse_query::<&str>(query).ok()?;
-    let mut fields = HashSet::new();
-
-    for definition in ast.definitions {
-        if let Definition::Operation(operation) = definition {
-            let owned_selection_set = match operation {
-                OperationDefinition::Query(q) => q.selection_set,
-                OperationDefinition::Mutation(m) => m.selection_set,
-                OperationDefinition::Subscription(s) => s.selection_set,
-                OperationDefinition::SelectionSet(s) => s,
-            };
-
-            if owned_selection_set.items.is_empty() {
-                return Some(HashSet::new());
-            }
-
-            collect_field_names_owned(&owned_selection_set, &mut fields);
-        }
-    }
-
-    Some(fields)
-}
-
-fn collect_field_names_owned<'a>(selection_set: &SelectionSet<'a, &'a str>, fields: &mut HashSet<String>) {
-    for selection in &selection_set.items {
-        if let Selection::Field(field) = selection {
-            fields.insert(field.name.to_string());
-            if !field.selection_set.items.is_empty() {
-                collect_field_names_owned(&field.selection_set, fields);
-            }
-        }
+fn select_field<'query>(value: &Value, selection_set: &SelectionSet<'query, &'query str>) -> Value {
+    if selection_set.items.is_empty() {
+        value.clone()
+    } else {
+        select(value, selection_set)
     }
 }
