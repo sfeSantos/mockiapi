@@ -5,8 +5,22 @@ use tokio::sync::Mutex;
 
 pub type Endpoints = Arc<Mutex<HashMap<String, Endpoint>>>;
 
+/// Protocol an endpoint was registered for. It decides how a request is answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum EndpointKind {
+    #[default]
+    #[serde(rename = "REST")]
+    Rest,
+    #[serde(rename = "GraphQL")]
+    GraphQl,
+    #[serde(rename = "gRPC")]
+    Grpc,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Endpoint {
+    #[serde(rename = "type", default)]
+    pub kind: EndpointKind,
     pub method: Vec<String>,
     pub file: String,
     pub status_code: Option<u16>,

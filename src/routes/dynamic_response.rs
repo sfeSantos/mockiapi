@@ -11,7 +11,7 @@ use crate::handlers::params::{get_body_from_request, get_params_from_request};
 use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{Endpoint, Endpoints, InvalidGraphQLRequest, MethodNotAllowed, NotFound, Unauthorized};
+use crate::models::{Endpoint, EndpointKind, Endpoints, GrpcMockNotFound, InvalidGraphQLRequest, MethodNotAllowed, NotFound, Unauthorized};
 use crate::middlewares::rate_limit::{check_rate_limit, RateLimitTracker};
 use crate::utils::{add_possible_delay, reconstruct_full_url};
 
@@ -54,35 +54,40 @@ pub async fn serve_dynamic_response(
         Err(_) => return Err(warp::reject::custom(NotFound)),
     };
 
-    // Try to Handle GraphQL or Grpc
-    if let Some(ref body_bytes) = body {
-        if let Ok(body_str) = std::str::from_utf8(body_bytes) {
-            // Try GraphQL
-            if let Some(response) = handle_graphql(body_str, &endpoint, &json_file_content) {
-                return Ok(response);
-            }
+    // The protocol is known since registration, so the body is never sniffed.
+    let response = match endpoint.kind {
+        EndpointKind::GraphQl => handle_graphql(body_as_str(&body), &endpoint, &json_file_content)
+            .ok_or_else(|| warp::reject::custom(InvalidGraphQLRequest))?,
+        EndpointKind::Grpc => handle_grpc(body_as_str(&body), grpc_registry)
+            .await
+            .ok_or_else(|| warp::reject::custom(GrpcMockNotFound))?,
+        EndpointKind::Rest => rest_response(json_file_content, &endpoint, &full_url, body),
+    };
 
-            // Try gRPC
-            if let Some(response) = handle_grpc(body_str, grpc_registry).await {
-                return Ok(response);
-            } else {
-                return Err(warp::reject::custom(InvalidGraphQLRequest));
-            }
-        }
-    }
+    Ok(response)
+}
 
-    // Default path if not a GraphQL request
-    let response_body = maybe_replace_variables(json_file_content, &endpoint, &full_url, body);
+fn body_as_str(body: &Option<Bytes>) -> &str {
+    body.as_deref()
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .unwrap_or_default()
+}
+
+fn rest_response(
+    json_file_content: String,
+    endpoint: &Endpoint,
+    full_url: &str,
+    body: Option<Bytes>,
+) -> Response<String> {
+    let response_body = maybe_replace_variables(json_file_content, endpoint, full_url, body);
     let status_code = StatusCode::from_u16(endpoint.status_code.unwrap_or(200))
         .unwrap_or(StatusCode::NOT_FOUND);
 
-    let response = Response::builder()
+    Response::builder()
         .status(status_code)
         .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
-        .body(response_body.into())
-        .unwrap();
-    
-    Ok(response)
+        .body(response_body)
+        .unwrap()
 }
 
 fn maybe_replace_variables(
@@ -92,7 +97,8 @@ fn maybe_replace_variables(
     body: Option<Bytes>,
 ) -> String {
     if endpoint.with_dynamic_vars.unwrap_or(false) {
-        let params = match body {
+        // A request without payload still carries an empty body.
+        let params = match body.filter(|bytes| !bytes.is_empty()) {
             Some(body) => get_body_from_request(body),
             None => get_params_from_request(full_url),
         };

@@ -3,13 +3,11 @@ use std::sync::{Arc};
 use log::info;
 use tokio::sync::Mutex;
 use warp::{Filter};
-use warp::http::header::AUTHORIZATION;
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::{Endpoints};
 use mockiapi::middlewares::rate_limit::new_rate_limit;
 use mockiapi::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint, with_endpoints};
-use mockiapi::routes::dynamic_response::serve_dynamic_response;
-use mockiapi::utils::{handle_rejection, with_rate_limiter};
+use mockiapi::routes::mock_routes;
 
 #[tokio::main]
 async fn main() {
@@ -52,23 +50,8 @@ async fn main() {
         .and(with_endpoints(endpoints.clone()))
         .and_then(delete_endpoint);
 
-    let dynamic_routes = warp::method()
-        .and(warp::path::full())
-        .and(warp::query::<HashMap<String, String>>()
-            .map(Some)
-            .or(warp::any().map(|| None))
-            .unify())
-        .and(warp::header::optional::<String>(AUTHORIZATION.as_str()))
-        .and(with_endpoints(endpoints.clone()))
-        .and(with_rate_limiter(rate_limiter.clone()))
-        .and(warp::body::bytes()
-            .map(Some)
-            .or(warp::any().map(|| None))
-            .unify())
-        .and(registry_filter.clone())
-        .and_then(serve_dynamic_response)
-        .recover(handle_rejection);
-    
+    let dynamic_routes = mock_routes(endpoints.clone(), rate_limiter, registry);
+
     let static_files = warp::fs::dir("frontend/dist")
         .with(warp::log("static_files"));
     
