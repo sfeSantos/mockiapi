@@ -44,7 +44,8 @@ pub async fn serve_dynamic_response(
 
     check_rate_limit(path.as_str().to_string(), method.as_str(), endpoint.rate_limit.as_ref(), rate_limiter.clone()).await?;
 
-    if let Some(_) = endpoint.delay {
+    // A gRPC mock carries its own delay, which the gRPC handler applies.
+    if endpoint.kind != EndpointKind::Grpc {
         add_possible_delay(&endpoint).await;
     }
 
