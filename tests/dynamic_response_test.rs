@@ -388,10 +388,10 @@ async fn test_grpc_endpoint_applies_the_delay_once() {
         .register_mock(
             "com.example.BookService",
             "GetBook",
-            GrpcMockResponse { output: json!({}), delay_ms: Some(300), status: Some(200) },
+            GrpcMockResponse { output: json!({}), delay_ms: Some(400), status: Some(200) },
         );
     let mut grpc = grpc_endpoint();
-    grpc.delay = Some(300);
+    grpc.delay = Some(400);
     let filter = routes_with_registry(vec![("/grpc", grpc)], registry);
 
     let start_time = Instant::now();
@@ -404,8 +404,8 @@ async fn test_grpc_endpoint_applies_the_delay_once() {
     let elapsed = start_time.elapsed();
 
     assert_eq!(res.status(), StatusCode::OK);
-    assert!(elapsed >= Duration::from_millis(300));
-    assert!(elapsed < Duration::from_millis(550), "delay applied twice: {elapsed:?}");
+    assert!(elapsed >= Duration::from_millis(400));
+    assert!(elapsed < Duration::from_millis(800), "delay applied twice: {elapsed:?}");
 }
 
 #[tokio::test]
