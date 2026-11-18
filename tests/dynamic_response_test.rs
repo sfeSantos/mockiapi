@@ -307,6 +307,34 @@ async fn test_graphql_endpoint_rejects_a_query_that_does_not_parse() {
 }
 
 #[tokio::test]
+async fn test_grpc_endpoint_applies_the_delay_once() {
+    let registry = Arc::new(GrpcRegistry::new());
+    registry
+        .register_mock(
+            "com.example.BookService",
+            "GetBook",
+            GrpcMockResponse { output: json!({}), delay_ms: Some(300), status: Some(200) },
+        )
+        .await;
+    let mut grpc = endpoint(EndpointKind::Grpc, "POST", "uploads/file.json");
+    grpc.delay = Some(300);
+    let filter = routes_with_registry(vec![("/grpc", grpc)], registry);
+
+    let start_time = Instant::now();
+    let res = request()
+        .method("POST")
+        .path("/grpc")
+        .json(&json!({ "service": "com.example.BookService", "rpc": "GetBook", "request": {} }))
+        .reply(&filter)
+        .await;
+    let elapsed = start_time.elapsed();
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(elapsed >= Duration::from_millis(300));
+    assert!(elapsed < Duration::from_millis(550), "delay applied twice: {elapsed:?}");
+}
+
+#[tokio::test]
 async fn test_grpc_endpoint_answers_the_registered_mock() {
     let registry = Arc::new(GrpcRegistry::new());
     registry
