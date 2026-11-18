@@ -8,6 +8,7 @@
         status_code,
         delay,
         rate_limit,
+        with_dynamic_vars,
         username,
         password,
         tokenData,
@@ -81,7 +82,8 @@
           $response_file,
           selectedTab === 'GraphQL',
           $grpcService,
-          $grpcRPC
+          $grpcRPC,
+          selectedTab === 'REST' && $with_dynamic_vars
         )
       }>
                 {#if selectedTab !== 'gRPC'}
@@ -136,6 +138,18 @@
                     <label for="limit">Rate Limit</label>
                     <input type="text" bind:value={$rate_limit} />
                 </div>
+
+                {#if selectedTab === 'REST'}
+                    <div class="form-group" id="dynamic-vars">
+                        <label for="with-dynamic-vars">Dynamic Vars</label>
+                        <div class="checkbox-group">
+                            <div>
+                                <input type="checkbox" id="with-dynamic-vars" bind:checked={$with_dynamic_vars} />
+                                <label for="with-dynamic-vars">Replace {'{{name}}'} placeholders in the response</label>
+                            </div>
+                        </div>
+                    </div>
+                {/if}
 
                 <div class="form-group" id="auth">
                     <label for="auth">Authentication Type</label>
