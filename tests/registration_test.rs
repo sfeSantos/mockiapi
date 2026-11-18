@@ -153,3 +153,20 @@ async fn test_delete_removes_the_grpc_mocks_of_the_endpoint() {
     assert_eq!(deleted, StatusCode::OK);
     assert!(registry.get_mock("com.example.BookService", "GetBook").await.is_none());
 }
+
+#[tokio::test]
+async fn test_registering_a_path_again_removes_the_previous_upload() {
+    let endpoints = new_endpoints();
+    let filter = admin(endpoints.clone());
+    let fields = [("path", "/api/replaced"), ("methods", "GET"), ("file", "{}")];
+
+    register(&filter, &fields).await;
+    let first_file = endpoints.lock().await.get("/api/replaced").unwrap().endpoint.file.clone();
+    register(&filter, &fields).await;
+    let second_file = endpoints.lock().await.get("/api/replaced").unwrap().endpoint.file.clone();
+    delete(&filter, "/api/replaced").await;
+
+    assert_ne!(first_file, second_file);
+    assert!(!Path::new(&first_file).exists());
+    assert!(!Path::new(&second_file).exists());
+}
