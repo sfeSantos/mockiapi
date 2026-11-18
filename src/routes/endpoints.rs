@@ -2,11 +2,21 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use warp::{reply, Filter, Rejection, Reply};
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{Endpoints, MultipartHandler, NotFound};
+use warp::http::StatusCode;
+use crate::models::{Endpoints, InvalidRegistration, MultipartHandler, NotFound};
 
 pub async fn register_endpoint(form: warp::multipart::FormData, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<impl Reply, Rejection> {
-    MultipartHandler::parse(form, endpoints, grpc_registry).await?;
-    Ok(reply::json(&"Registered successfully"))
+    // A rejection here would fall through to the mock catch-all and come back as a 404,
+    // so a bad form is answered directly.
+    match MultipartHandler::parse(form, endpoints, grpc_registry).await {
+        Ok(()) => Ok(reply::with_status(reply::json(&"Registered successfully"), StatusCode::OK)),
+        Err(rejection) => match rejection.find::<InvalidRegistration>() {
+            Some(InvalidRegistration(reason)) => {
+                Ok(reply::with_status(reply::json(reason), StatusCode::BAD_REQUEST))
+            }
+            None => Err(rejection),
+        },
+    }
 }
 
 pub async fn list_endpoint(endpoints: Endpoints) -> Result<impl Reply, Rejection> {
@@ -25,7 +35,7 @@ pub async fn delete_endpoint(path_to_delete: String, endpoints: Endpoints) -> Re
         if tokio::fs::remove_file(&file_path).await.is_err() {
             log::info!("Failed to delete file: {}", file_path);
         }
-        return Ok(reply::with_status("Deleted successfully", warp::http::StatusCode::OK));
+        return Ok(reply::with_status("Deleted successfully", StatusCode::OK));
     }
 
     Err(warp::reject::custom(NotFound))
