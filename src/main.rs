@@ -3,6 +3,7 @@ use std::sync::{Arc};
 use log::info;
 use tokio::sync::Mutex;
 use warp::{Filter};
+use mockiapi::handlers::multipart::UPLOADS_DIR;
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::{Endpoints};
 use mockiapi::middlewares::rate_limit::new_rate_limit;
@@ -11,6 +12,12 @@ use mockiapi::routes::{admin_routes, mock_routes};
 #[tokio::main]
 async fn main() {
     env_logger::init();
+
+    // The directory is not part of the release binary or the Docker image.
+    tokio::fs::create_dir_all(UPLOADS_DIR)
+        .await
+        .expect("the uploads directory could not be created");
+
     let endpoints: Endpoints = Arc::new(Mutex::new(HashMap::new()));
     let rate_limiter = new_rate_limit();
     let registry = Arc::new(GrpcRegistry::new());
