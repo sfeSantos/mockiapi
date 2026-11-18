@@ -108,7 +108,14 @@ impl MultipartHandler {
             }).await
         }
 
-        endpoints.lock().await.insert(path.clone(), endpoint);
+        let replaced = endpoints.lock().await.insert(path, endpoint);
+
+        // Registering a path again supersedes its previous upload.
+        if let Some(replaced) = replaced {
+            if fs::remove_file(&replaced.endpoint.file).await.is_err() {
+                log::info!("Failed to delete file: {}", replaced.endpoint.file);
+            }
+        }
         
         Ok(())
     }
