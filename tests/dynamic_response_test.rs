@@ -7,7 +7,6 @@ use warp::http::StatusCode;
 use warp::test::request;
 use warp::{Filter, Rejection, Reply};
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
-use mockiapi::middlewares::rate_limit::new_rate_limit;
 use mockiapi::models::grpc::GrpcMockResponse;
 use mockiapi::models::{AuthData, Endpoint, EndpointKind, RateLimit};
 use mockiapi::routes::mock_routes;
@@ -47,7 +46,7 @@ fn routes_with_registry(
         store.insert(path.to_string(), endpoint);
     }
 
-    mock_routes(Arc::new(Mutex::new(store)), new_rate_limit(), registry)
+    mock_routes(Arc::new(Mutex::new(store)), registry)
 }
 
 fn routes(

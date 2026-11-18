@@ -2,6 +2,7 @@ use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::sync::Arc;
 use serde::{Serialize, Serializer};
+use crate::middlewares::rate_limit::RateLimiter;
 use crate::models::Endpoint;
 use crate::routing::pattern::{split_path_and_query, RoutePattern};
 
@@ -12,6 +13,8 @@ pub struct Route {
     pub path: String,
     pub pattern: RoutePattern,
     pub endpoint: Endpoint,
+    /// Present when the endpoint was registered with a rate limit.
+    pub limiter: Option<RateLimiter>,
 }
 
 /// Every registered endpoint, indexed so a request is resolved without scanning them all.
@@ -30,7 +33,8 @@ impl EndpointStore {
     pub fn insert(&mut self, path: String, endpoint: Endpoint) -> Option<Arc<Route>> {
         let replaced = self.remove(&path);
         let pattern = RoutePattern::parse(&path);
-        let route = Arc::new(Route { path: path.clone(), pattern, endpoint });
+        let limiter = endpoint.rate_limit.clone().map(RateLimiter::new);
+        let route = Arc::new(Route { path: path.clone(), pattern, endpoint, limiter });
 
         let candidates = if route.pattern.has_literal_path() {
             let (literal_path, _) = split_path_and_query(&path);
