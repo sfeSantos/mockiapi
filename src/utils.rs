@@ -2,9 +2,10 @@ use std::time::Duration;
 use tokio::time::sleep;
 use log::info;
 use warp::{Filter, Rejection, Reply};
-use warp::http::{Response, StatusCode};
+use warp::http::header::CONTENT_TYPE;
+use warp::http::{HeaderValue, Response, StatusCode};
 use warp::hyper::Body;
-use crate::models::{Endpoint, GrpcMockNotFound, InvalidGraphQLRequest, MethodNotAllowed, NotFound, RateLimited, Unauthorized};
+use crate::models::{Endpoint, InvalidGrpcRequest, InvalidGraphQLRequest, MethodNotAllowed, NotFound, RateLimited, Unauthorized};
 use crate::middlewares::rate_limit::RateLimitTracker;
 
 /// Adds a delay to the request handling if the `Endpoint` specifies a delay.
@@ -102,13 +103,22 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Rejection> {
             .body(Body::from("Invalid GraphQL request\n"))
             .unwrap();
         return Ok(response);
-    } else if err.find::<GrpcMockNotFound>().is_some() {
+    } else if err.find::<InvalidGrpcRequest>().is_some() {
         let response: Response<Body> = Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::from("gRPC mock not found\n"))
+            .status(StatusCode::BAD_REQUEST)
+            .body(Body::from("Invalid gRPC request\n"))
             .unwrap();
         return Ok(response);
     }
 
     Err(err)
+}
+
+/// Builds a JSON response. The body is taken as is, so shared bytes are not copied.
+pub fn json_response(status: StatusCode, body: impl Into<Body>) -> Response<Body> {
+    let mut response = Response::new(body.into());
+    *response.status_mut() = status;
+    response.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+    response
 }

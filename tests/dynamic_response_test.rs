@@ -355,8 +355,7 @@ async fn test_grpc_endpoint_applies_the_delay_once() {
             "com.example.BookService",
             "GetBook",
             GrpcMockResponse { output: json!({}), delay_ms: Some(300), status: Some(200) },
-        )
-        .await;
+        );
     let mut grpc = endpoint(EndpointKind::Grpc, "POST", "uploads/file.json");
     grpc.delay = Some(300);
     let filter = routes_with_registry(vec![("/grpc", grpc)], registry);
@@ -376,6 +375,15 @@ async fn test_grpc_endpoint_applies_the_delay_once() {
 }
 
 #[tokio::test]
+async fn test_grpc_endpoint_rejects_a_body_that_is_not_a_call() {
+    let filter = routes(vec![("/grpc", endpoint(EndpointKind::Grpc, "POST", "uploads/file.json"))]);
+
+    let res = request().method("POST").path("/grpc").body("not a call").reply(&filter).await;
+
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn test_grpc_endpoint_answers_the_registered_mock() {
     let registry = Arc::new(GrpcRegistry::new());
     registry
@@ -383,8 +391,7 @@ async fn test_grpc_endpoint_answers_the_registered_mock() {
             "com.example.BookService",
             "GetBook",
             GrpcMockResponse { output: json!({ "id": "b123" }), delay_ms: None, status: Some(200) },
-        )
-        .await;
+        );
     let filter = routes_with_registry(
         vec![("/grpc", endpoint(EndpointKind::Grpc, "POST", "uploads/file.json"))],
         registry,

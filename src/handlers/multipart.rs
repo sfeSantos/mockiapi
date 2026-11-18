@@ -105,7 +105,7 @@ impl MultipartHandler {
                 output: data,
                 delay_ms: delay,
                 status: status_code,
-            }).await
+            });
         }
 
         let replaced = endpoints.lock().await.insert(path, endpoint);

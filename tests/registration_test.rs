@@ -146,12 +146,12 @@ async fn test_delete_removes_the_grpc_mocks_of_the_endpoint() {
         ],
     )
     .await;
-    let mock_before_delete = registry.get_mock("com.example.BookService", "GetBook").await;
+    let mock_before_delete = registry.get_mock("com.example.BookService", "GetBook");
     let deleted = delete(&filter, "/grpc").await;
 
     assert!(mock_before_delete.is_some());
     assert_eq!(deleted, StatusCode::OK);
-    assert!(registry.get_mock("com.example.BookService", "GetBook").await.is_none());
+    assert!(registry.get_mock("com.example.BookService", "GetBook").is_none());
 }
 
 #[tokio::test]

@@ -34,8 +34,8 @@ pub struct InvalidRegistration(pub &'static str);
 impl Reject for InvalidRegistration {}
 
 #[derive(Debug)]
-pub struct GrpcMockNotFound;
-impl Reject for GrpcMockNotFound {}
+pub struct InvalidGrpcRequest;
+impl Reject for InvalidGrpcRequest {}
 
 #[derive(Debug)]
 pub struct MethodNotAllowed;

@@ -1,57 +1,48 @@
+use std::borrow::Cow;
 use std::sync::Arc;
-use warp::http::{HeaderValue, Response, StatusCode};
-use warp::{reply, Reply};
-use warp::http::header::CONTENT_TYPE;
+use std::time::Duration;
+use serde::Deserialize;
+use warp::http::{Response, StatusCode};
+use warp::hyper::Body;
 use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::grpc::GrpcMockRequest;
+use crate::utils::json_response;
 
-async fn process_grpc_mock(
-    req: &GrpcMockRequest,
-    registry: &GrpcRegistry,
-) -> Option<(u16, String)> {
-    let mock = registry.get_mock(&req.service, &req.method).await?;
+const MOCK_NOT_FOUND: &str = r#"{"error":"Mock not found"}"#;
 
-    if let Some(delay) = mock.delay_ms {
-        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-    }
-
-    let status = mock.status.unwrap_or(200);
-    let body = serde_json::to_string(&mock.output).ok()?;
-
-    Some((status, body))
-}
-pub async fn handle_grpc(
-    body_str: &str,
-    registry: Arc<GrpcRegistry>,
-) -> Option<Response<String>> {
-    let req = serde_json::from_str::<GrpcMockRequest>(body_str).ok()?;
-    let (status, body) = process_grpc_mock(&req, &registry).await?;
-
-    let response = Response::builder()
-        .status(StatusCode::from_u16(status).unwrap_or(StatusCode::OK))
-        .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
-        .body(body.into())
-        .ok()?;
-
-    Some(response)
+/// The part of a call needed to find its mock. The payload under `request` is never read,
+/// so it is skipped instead of being parsed into a tree.
+#[derive(Deserialize)]
+struct GrpcCall<'a> {
+    #[serde(borrow)]
+    service: Cow<'a, str>,
+    #[serde(borrow)]
+    rpc: Cow<'a, str>,
 }
 
+/// Answers a simulated gRPC call sent as JSON. Returns `None` when the body is not a call.
+pub async fn handle_grpc(body: &[u8], registry: &GrpcRegistry) -> Option<Response<Body>> {
+    let call = serde_json::from_slice::<GrpcCall>(body).ok()?;
+
+    Some(answer(&call.service, &call.rpc, registry).await)
+}
+
+/// Answers a call that was already decoded.
 pub async fn grpc_handler(
     req: GrpcMockRequest,
     registry: Arc<GrpcRegistry>,
-) -> Result<Box<dyn Reply>, warp::Rejection> {
-    match process_grpc_mock(&req, &registry).await {
-        Some((status, body)) => {
-            let json_value: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
-            let json = reply::json(&json_value);
-            Ok(Box::new(reply::with_status(json, StatusCode::from_u16(status).unwrap())))
-        }
-        None => {
-            let not_found = reply::with_status(
-                reply::json(&serde_json::json!({ "error": "Mock not found" })),
-                StatusCode::NOT_FOUND,
-            );
-            Ok(Box::new(not_found))
-        }
+) -> Result<Response<Body>, warp::Rejection> {
+    Ok(answer(&req.service, &req.method, &registry).await)
+}
+
+async fn answer(service: &str, method: &str, registry: &GrpcRegistry) -> Response<Body> {
+    let Some(mock) = registry.get_mock(service, method) else {
+        return json_response(StatusCode::NOT_FOUND, MOCK_NOT_FOUND);
+    };
+
+    if let Some(delay) = mock.delay_ms {
+        tokio::time::sleep(Duration::from_millis(delay)).await;
     }
+
+    json_response(mock.status, mock.body.clone())
 }
