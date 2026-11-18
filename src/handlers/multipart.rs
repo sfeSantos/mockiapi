@@ -6,7 +6,7 @@ use uuid::Uuid;
 use warp::{Rejection};
 use warp::multipart::Part;
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{Endpoint, Endpoints, FileError, InvalidMultipart, MultipartHandler, NotFound, RateLimit, Utf8Error};
+use crate::models::{Endpoint, EndpointKind, Endpoints, FileError, InvalidMultipart, MultipartHandler, NotFound, RateLimit, Utf8Error};
 use crate::models::grpc::GrpcMockResponse;
 
 impl MultipartHandler {
@@ -24,6 +24,7 @@ impl MultipartHandler {
         let mut parts = form.into_stream();
         let mut grpc_service = None;
         let mut grpc_method = None;
+        let mut is_graphql = false;
         
         while let Some(Ok(part)) = parts.next().await {
             match part.name() {
@@ -53,7 +54,12 @@ impl MultipartHandler {
                     with_dynamic_vars = Some(Self::part_to_string(part).await?
                         .parse::<bool>().unwrap_or(false));
                 },
-                "grpcService" => grpc_service = Some(Self::part_to_string(part).await?),
+                "isGraphQL" => is_graphql = Self::part_to_string(part).await? == "true",
+                "grpcService" => {
+                    // The form always sends this field, empty for REST and GraphQL.
+                    let value = Self::part_to_string(part).await?;
+                    grpc_service = (!value.is_empty()).then_some(value);
+                }
                 "grpcRPC" => grpc_method = Some(Self::part_to_string(part).await?),
                 _ => {}
             }
@@ -70,7 +76,16 @@ impl MultipartHandler {
             .await
             .map_err(|_| warp::reject::custom(FileError))?;
         
+        let kind = if grpc_service.is_some() {
+            EndpointKind::Grpc
+        } else if is_graphql {
+            EndpointKind::GraphQl
+        } else {
+            EndpointKind::Rest
+        };
+
         let endpoint = Endpoint {
+            kind,
             method: methods,
             file: file_name,
             status_code,

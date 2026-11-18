@@ -29,5 +29,9 @@ pub struct InvalidGraphQLRequest;
 impl Reject for InvalidGraphQLRequest {}
 
 #[derive(Debug)]
+pub struct GrpcMockNotFound;
+impl Reject for GrpcMockNotFound {}
+
+#[derive(Debug)]
 pub struct MethodNotAllowed;
 impl Reject for MethodNotAllowed {}
