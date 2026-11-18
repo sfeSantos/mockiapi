@@ -3,7 +3,7 @@ use std::sync::Arc;
 use warp::{reply, Filter, Rejection, Reply};
 use crate::middlewares::grpc_registry::GrpcRegistry;
 use warp::http::StatusCode;
-use crate::models::{Endpoints, InvalidRegistration, MultipartHandler, NotFound};
+use crate::models::{EndpointKind, Endpoints, InvalidRegistration, MultipartHandler, NotFound};
 
 pub async fn register_endpoint(form: warp::multipart::FormData, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<impl Reply, Rejection> {
     // A rejection here would fall through to the mock catch-all and come back as a 404,
@@ -24,17 +24,26 @@ pub async fn list_endpoint(endpoints: Endpoints) -> Result<impl Reply, Rejection
     Ok(reply::json(&endpoints_map))
 }
 
-pub async fn delete_endpoint(path_to_delete: String, endpoints: Endpoints) -> Result<impl Reply, Rejection> {
+pub async fn delete_endpoint(path_to_delete: String, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<impl Reply, Rejection> {
     let decoded_path = urlencoding::decode(&path_to_delete)
         .map_err(|_| warp::reject::custom(NotFound))?
         .into_owned();
 
     let mut endpoints_map = endpoints.lock().await;
     if let Some(endpoint) = endpoints_map.remove(&decoded_path) {
-        let file_path = format!("uploads/{}", endpoint.file);
-        if tokio::fs::remove_file(&file_path).await.is_err() {
-            log::info!("Failed to delete file: {}", file_path);
+        // `file` already holds the full relative path the upload was written to.
+        if tokio::fs::remove_file(&endpoint.file).await.is_err() {
+            log::info!("Failed to delete file: {}", endpoint.file);
         }
+
+        // The registry is shared by every gRPC endpoint, so its mocks go away with the last one.
+        let is_last_grpc_endpoint = endpoint.kind == EndpointKind::Grpc
+            && !endpoints_map.values().any(|remaining| remaining.kind == EndpointKind::Grpc);
+
+        if is_last_grpc_endpoint {
+            grpc_registry.clear().await;
+        }
+
         return Ok(reply::with_status("Deleted successfully", StatusCode::OK));
     }
 
