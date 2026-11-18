@@ -6,11 +6,36 @@ use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::middlewares::rate_limit::RateLimitTracker;
 use crate::models::Endpoints;
 use crate::routes::dynamic_response::serve_dynamic_response;
-use crate::routes::endpoints::with_endpoints;
+use crate::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint, with_endpoints};
 use crate::utils::{handle_rejection, with_rate_limiter};
 
 pub mod endpoints;
 pub mod dynamic_response;
+
+const MAX_UPLOAD_BYTES: u64 = 5_000_000;
+
+/// Routes the dashboard uses to register, list and delete mock endpoints.
+pub fn admin_routes(
+    endpoints: Endpoints,
+    grpc_registry: Arc<GrpcRegistry>,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+    let register = warp::post()
+        .and(warp::path!("register"))
+        .and(warp::multipart::form().max_length(MAX_UPLOAD_BYTES))
+        .and(with_endpoints(endpoints.clone()))
+        .and(warp::any().map(move || Arc::clone(&grpc_registry)))
+        .and_then(register_endpoint);
+    let list = warp::get()
+        .and(warp::path!("list"))
+        .and(with_endpoints(endpoints.clone()))
+        .and_then(list_endpoint);
+    let delete = warp::delete()
+        .and(warp::path!("delete" / String))
+        .and(with_endpoints(endpoints))
+        .and_then(delete_endpoint);
+
+    register.or(list).or(delete)
+}
 
 /// Catch-all filter that answers every registered mock endpoint.
 pub fn mock_routes(

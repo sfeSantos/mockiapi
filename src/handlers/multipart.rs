@@ -6,7 +6,7 @@ use uuid::Uuid;
 use warp::{Rejection};
 use warp::multipart::Part;
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{Endpoint, EndpointKind, Endpoints, FileError, InvalidMultipart, MultipartHandler, NotFound, RateLimit, Utf8Error};
+use crate::models::{Endpoint, EndpointKind, Endpoints, FileError, InvalidMultipart, InvalidRegistration, MultipartHandler, NotFound, RateLimit, Utf8Error};
 use crate::models::grpc::GrpcMockResponse;
 
 impl MultipartHandler {
@@ -40,16 +40,7 @@ impl MultipartHandler {
                     authentication = if value == "null" { None } else { Some(value) };
                 }
                 "delay" => delay = Some(Self::part_to_string(part).await?.parse::<u64>().ok()),
-                "rate_limit" => {
-                    let value = Self::part_to_string(part).await?;
-                    if !value.is_empty() || value.contains('/') {
-                        let vals: Vec<&str> = value.split('/').collect();
-                        rate_limit = Some(RateLimit {
-                            requests: vals[0].parse::<usize>().unwrap_or(0),
-                            window_ms: vals[1].parse::<u64>().unwrap_or(0),
-                        });
-                    }
-                },
+                "rate_limit" => rate_limit = Self::parse_rate_limit(&Self::part_to_string(part).await?)?,
                 "with_dynamic_vars" => {
                     with_dynamic_vars = Some(Self::part_to_string(part).await?
                         .parse::<bool>().unwrap_or(false));
@@ -60,7 +51,10 @@ impl MultipartHandler {
                     let value = Self::part_to_string(part).await?;
                     grpc_service = (!value.is_empty()).then_some(value);
                 }
-                "grpcRPC" => grpc_method = Some(Self::part_to_string(part).await?),
+                "grpcRPC" => {
+                    let value = Self::part_to_string(part).await?;
+                    grpc_method = (!value.is_empty()).then_some(value);
+                }
                 _ => {}
             }
         }
@@ -71,6 +65,12 @@ impl MultipartHandler {
             .unwrap_or_else(Vec::new);
         let file_name = file_name.ok_or_else(|| warp::reject::custom(NotFound))?;
         let delay = delay.unwrap_or(None);
+
+        if grpc_service.is_some() && grpc_method.is_none() {
+            return Err(warp::reject::custom(InvalidRegistration(
+                "grpcRPC is required when grpcService is set",
+            )));
+        }
 
         fs::write(&file_name, file_data.clone())
             .await
@@ -95,10 +95,10 @@ impl MultipartHandler {
             with_dynamic_vars,
         };
         
-        if let Some(grpc) = grpc_service {
+        if let (Some(grpc), Some(rpc)) = (grpc_service, grpc_method) {
             let data = serde_json::from_slice(&file_data)
                 .map_err(|_| warp::reject::custom(Utf8Error))?;
-            grpc_registry.register_mock(&grpc, grpc_method.unwrap().as_str(), GrpcMockResponse{
+            grpc_registry.register_mock(&grpc, &rpc, GrpcMockResponse{
                 output: data,
                 delay_ms: delay,
                 status: status_code,
@@ -108,6 +108,24 @@ impl MultipartHandler {
         endpoints.lock().await.insert(path.clone(), endpoint);
         
         Ok(())
+    }
+
+    /// Reads `<requests>/<window in ms>`. An empty value means no rate limit.
+    fn parse_rate_limit(value: &str) -> Result<Option<RateLimit>, Rejection> {
+        if value.is_empty() {
+            return Ok(None);
+        }
+
+        let invalid = || {
+            warp::reject::custom(InvalidRegistration(
+                "rate_limit must be <requests>/<window in ms>, for example 10/1000",
+            ))
+        };
+        let (requests, window_ms) = value.split_once('/').ok_or_else(invalid)?;
+        let requests = requests.trim().parse::<usize>().map_err(|_| invalid())?;
+        let window_ms = window_ms.trim().parse::<u64>().map_err(|_| invalid())?;
+
+        Ok(Some(RateLimit { requests, window_ms }))
     }
 
     async fn part_to_string(part: Part) -> Result<String, Rejection> {

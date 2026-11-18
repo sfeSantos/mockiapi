@@ -28,6 +28,11 @@ impl Reject for Utf8Error {}
 pub struct InvalidGraphQLRequest;
 impl Reject for InvalidGraphQLRequest {}
 
+/// A registration form field that is missing or malformed, with the reason shown to the client.
+#[derive(Debug)]
+pub struct InvalidRegistration(pub &'static str);
+impl Reject for InvalidRegistration {}
+
 #[derive(Debug)]
 pub struct GrpcMockNotFound;
 impl Reject for GrpcMockNotFound {}
