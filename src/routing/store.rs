@@ -1,9 +1,9 @@
 use std::cmp::Reverse;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Serialize, Serializer};
 use crate::middlewares::rate_limit::RateLimiter;
-use crate::models::Endpoint;
+use crate::models::{Endpoint, EndpointKind};
 use crate::routing::pattern::{split_path_and_query, RoutePattern};
 
 /// A registered endpoint together with the pattern requests are matched against.
@@ -106,6 +106,66 @@ impl EndpointStore {
     }
 }
 
+/// The endpoint store shared by every request.
+///
+/// Requests only read it, so they share a read lock and never wait on each other. The
+/// lock is taken and released inside each method: it cannot be held across an await,
+/// which is why a blocking `RwLock` is enough.
+#[derive(Debug, Clone, Default)]
+pub struct Endpoints {
+    store: Arc<RwLock<EndpointStore>>,
+}
+
+impl Endpoints {
+    /// Resolves a request to the most specific route that accepts its path and query.
+    pub fn find(&self, path: &str, query: &str) -> Option<Arc<Route>> {
+        self.read().find(path, query)
+    }
+
+    /// Looks a route up by the path it was registered with.
+    pub fn get(&self, path: &str) -> Option<Arc<Route>> {
+        self.read().get(path).cloned()
+    }
+
+    /// Registers an endpoint, returning the route it replaced when the path was taken.
+    pub fn insert(&self, path: String, endpoint: Endpoint) -> Option<Arc<Route>> {
+        self.write().insert(path, endpoint)
+    }
+
+    pub fn remove(&self, path: &str) -> Option<Arc<Route>> {
+        self.write().remove(path)
+    }
+
+    pub fn has_kind(&self, kind: EndpointKind) -> bool {
+        self.read()
+            .iter()
+            .any(|route| route.endpoint.kind() == kind)
+    }
+
+    pub fn len(&self) -> usize {
+        self.read().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.read().is_empty()
+    }
+
+    /// Serializes every endpoint as a JSON map keyed by registered path.
+    pub fn to_json(&self) -> Vec<u8> {
+        // Serializing cannot fail: the keys are strings and every value is plain data.
+        serde_json::to_vec(&*self.read()).unwrap_or_default()
+    }
+
+    // A poisoned lock only means another request panicked. The store itself is still valid.
+    fn read(&self) -> RwLockReadGuard<'_, EndpointStore> {
+        self.store.read().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn write(&self) -> RwLockWriteGuard<'_, EndpointStore> {
+        self.store.write().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
 /// Serializes as a map from registered path to endpoint, the shape the dashboard lists.
 impl Serialize for EndpointStore {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -118,11 +178,12 @@ impl Serialize for EndpointStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::EndpointKind;
+    use bytes::Bytes;
+    use crate::models::MockBody;
 
     fn endpoint(file: &str) -> Endpoint {
         Endpoint {
-            kind: EndpointKind::Rest,
+            body: MockBody::Raw(Bytes::new()),
             method: vec!["GET".to_string()],
             file: file.to_string(),
             status_code: None,

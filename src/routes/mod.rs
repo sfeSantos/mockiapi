@@ -5,8 +5,7 @@ use warp::{Filter, Rejection, Reply};
 use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::Endpoints;
 use crate::routes::dynamic_response::serve_dynamic_response;
-use crate::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint, with_endpoints};
-use crate::utils::handle_rejection;
+use crate::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint};
 
 pub mod endpoints;
 pub mod dynamic_response;
@@ -21,23 +20,26 @@ pub fn admin_routes(
     let register = warp::post()
         .and(warp::path!("register"))
         .and(warp::multipart::form().max_length(MAX_UPLOAD_BYTES))
-        .and(with_endpoints(endpoints.clone()))
-        .and(with_grpc_registry(Arc::clone(&grpc_registry)))
+        .and(with(endpoints.clone()))
+        .and(with(Arc::clone(&grpc_registry)))
         .then(register_endpoint);
     let list = warp::get()
         .and(warp::path!("list"))
-        .and(with_endpoints(endpoints.clone()))
+        .and(with(endpoints.clone()))
         .then(list_endpoint);
     let delete = warp::delete()
         .and(warp::path!("delete" / String))
-        .and(with_endpoints(endpoints))
-        .and(with_grpc_registry(grpc_registry))
+        .and(with(endpoints))
+        .and(with(grpc_registry))
         .then(delete_endpoint);
 
     register.or(list).or(delete)
 }
 
 /// Catch-all filter that answers every registered mock endpoint.
+///
+/// It always produces a response, including for a path nobody registered, so it has to
+/// be the last route.
 pub fn mock_routes(
     endpoints: Endpoints,
     grpc_registry: Arc<GrpcRegistry>,
@@ -45,24 +47,18 @@ pub fn mock_routes(
     let raw_query = warp::query::raw()
         .or(warp::any().map(String::new))
         .unify();
-    let optional_body = warp::body::bytes()
-        .map(Some)
-        .or(warp::any().map(|| None))
-        .unify();
 
     warp::method()
         .and(warp::path::full())
         .and(raw_query)
         .and(warp::header::optional::<String>(AUTHORIZATION.as_str()))
-        .and(with_endpoints(endpoints))
-        .and(optional_body)
-        .and(with_grpc_registry(grpc_registry))
-        .and_then(serve_dynamic_response)
-        .recover(handle_rejection)
+        .and(warp::body::bytes())
+        .and(with(endpoints))
+        .and(with(grpc_registry))
+        .then(serve_dynamic_response)
 }
 
-fn with_grpc_registry(
-    grpc_registry: Arc<GrpcRegistry>,
-) -> impl Filter<Extract = (Arc<GrpcRegistry>,), Error = Infallible> + Clone {
-    warp::any().map(move || Arc::clone(&grpc_registry))
+/// Hands a clone of shared state to a handler.
+fn with<T: Clone + Send>(state: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
+    warp::any().map(move || state.clone())
 }

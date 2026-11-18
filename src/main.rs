@@ -1,12 +1,10 @@
-use std::sync::{Arc};
+use std::sync::Arc;
 use log::info;
-use tokio::sync::Mutex;
-use warp::{Filter};
+use warp::Filter;
 use mockiapi::handlers::multipart::UPLOADS_DIR;
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
-use mockiapi::models::{Endpoints};
+use mockiapi::models::Endpoints;
 use mockiapi::routes::{admin_routes, mock_routes};
-use mockiapi::routing::EndpointStore;
 
 #[tokio::main]
 async fn main() {
@@ -17,7 +15,7 @@ async fn main() {
         .await
         .expect("the uploads directory could not be created");
 
-    let endpoints: Endpoints = Arc::new(Mutex::new(EndpointStore::default()));
+    let endpoints = Endpoints::default();
     let registry = Arc::new(GrpcRegistry::new());
     let log = warp::log::custom(|info| {
         info!("{} - {} {} {} [{}] {:?}",
@@ -31,7 +29,6 @@ async fn main() {
             info.request_headers()
         );
     });
-    
     let static_files = warp::fs::dir("frontend/dist")
         .with(warp::log("static_files"));
 

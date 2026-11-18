@@ -2,7 +2,7 @@ use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 use log::warn;
 use warp::http::Method;
-use crate::models::{RateLimit, RateLimited};
+use crate::models::RateLimit;
 
 /// The requests one HTTP method made in the current window.
 #[derive(Debug)]
@@ -28,18 +28,18 @@ impl RateLimiter {
         Self { limit, windows: Mutex::new(Vec::new()) }
     }
 
-    /// Counts a request, failing when the method used up its share of the window.
-    pub fn check(&self, method: &Method) -> Result<(), RateLimited> {
-        self.check_at(method, Instant::now())
+    /// Counts a request. Returns false when the method used up its share of the window.
+    pub fn try_acquire(&self, method: &Method) -> bool {
+        self.try_acquire_at(method, Instant::now())
     }
 
-    fn check_at(&self, method: &Method, now: Instant) -> Result<(), RateLimited> {
+    fn try_acquire_at(&self, method: &Method, now: Instant) -> bool {
         // A poisoned lock only means another request panicked. The counters are still valid.
         let mut windows = self.windows.lock().unwrap_or_else(PoisonError::into_inner);
         let Some(window) = windows.iter_mut().find(|window| window.method == method) else {
             windows.push(Window { method: method.clone(), started: now, count: 1 });
 
-            return self.allow(1, method);
+            return self.within_limit(1, method);
         };
 
         if now.duration_since(window.started) > Duration::from_millis(self.limit.window_ms) {
@@ -49,17 +49,17 @@ impl RateLimiter {
 
         window.count = window.count.saturating_add(1);
 
-        self.allow(window.count, method)
+        self.within_limit(window.count, method)
     }
 
-    fn allow(&self, count: usize, method: &Method) -> Result<(), RateLimited> {
-        if count > self.limit.requests {
-            warn!("Rate limit exceeded | Method: {} | Current count: {} | Limit: {}", method, count, self.limit.requests);
+    fn within_limit(&self, count: usize, method: &Method) -> bool {
+        let within_limit = count <= self.limit.requests;
 
-            return Err(RateLimited);
+        if !within_limit {
+            warn!("Rate limit exceeded | Method: {} | Current count: {} | Limit: {}", method, count, self.limit.requests);
         }
 
-        Ok(())
+        within_limit
     }
 }
 
@@ -76,9 +76,9 @@ mod tests {
         let limiter = limiter(2, 1_000);
         let now = Instant::now();
 
-        assert!(limiter.check_at(&Method::GET, now).is_ok());
-        assert!(limiter.check_at(&Method::GET, now).is_ok());
-        assert!(limiter.check_at(&Method::GET, now).is_err());
+        assert!(limiter.try_acquire_at(&Method::GET, now));
+        assert!(limiter.try_acquire_at(&Method::GET, now));
+        assert!(!limiter.try_acquire_at(&Method::GET, now));
     }
 
     #[test]
@@ -86,9 +86,9 @@ mod tests {
         let limiter = limiter(1, 1_000);
         let now = Instant::now();
 
-        assert!(limiter.check_at(&Method::GET, now).is_ok());
-        assert!(limiter.check_at(&Method::GET, now + Duration::from_millis(500)).is_err());
-        assert!(limiter.check_at(&Method::GET, now + Duration::from_millis(1_001)).is_ok());
+        assert!(limiter.try_acquire_at(&Method::GET, now));
+        assert!(!limiter.try_acquire_at(&Method::GET, now + Duration::from_millis(500)));
+        assert!(limiter.try_acquire_at(&Method::GET, now + Duration::from_millis(1_001)));
     }
 
     #[test]
@@ -96,15 +96,15 @@ mod tests {
         let limiter = limiter(1, 1_000);
         let now = Instant::now();
 
-        assert!(limiter.check_at(&Method::GET, now).is_ok());
-        assert!(limiter.check_at(&Method::POST, now).is_ok());
-        assert!(limiter.check_at(&Method::POST, now).is_err());
+        assert!(limiter.try_acquire_at(&Method::GET, now));
+        assert!(limiter.try_acquire_at(&Method::POST, now));
+        assert!(!limiter.try_acquire_at(&Method::POST, now));
     }
 
     #[test]
     fn a_limit_of_zero_refuses_everything() {
         let limiter = limiter(0, 1_000);
 
-        assert!(limiter.check(&Method::GET).is_err());
+        assert!(!limiter.try_acquire(&Method::GET));
     }
 }

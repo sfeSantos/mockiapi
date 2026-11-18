@@ -1,18 +1,16 @@
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use warp::http::StatusCode;
 use warp::test::request;
 use warp::{Filter, Rejection, Reply};
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::Endpoints;
 use mockiapi::routes::admin_routes;
-use mockiapi::routing::EndpointStore;
 
 const BOUNDARY: &str = "mockiapi-test-boundary";
 
 fn new_endpoints() -> Endpoints {
-    Arc::new(Mutex::new(EndpointStore::default()))
+    Endpoints::default()
 }
 
 fn admin(endpoints: Endpoints) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
@@ -76,7 +74,7 @@ async fn test_rate_limit_without_window_is_rejected() {
     .await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(endpoints.lock().await.is_empty());
+    assert!(endpoints.is_empty());
 }
 
 #[tokio::test]
@@ -91,7 +89,7 @@ async fn test_rate_limit_that_is_not_a_number_is_rejected() {
     .await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(endpoints.lock().await.is_empty());
+    assert!(endpoints.is_empty());
 }
 
 #[tokio::test]
@@ -106,7 +104,7 @@ async fn test_grpc_service_without_rpc_is_rejected() {
     .await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(endpoints.lock().await.is_empty());
+    assert!(endpoints.is_empty());
 }
 
 #[tokio::test]
@@ -119,14 +117,14 @@ async fn test_delete_removes_the_endpoint_and_its_uploaded_file() {
         &[("path", "/api/temporary"), ("methods", "GET"), ("file", "{\"ok\":true}")],
     )
     .await;
-    let uploaded_file = endpoints.lock().await.get("/api/temporary").unwrap().endpoint.file.clone();
+    let uploaded_file = endpoints.get("/api/temporary").unwrap().endpoint.file.clone();
     let existed_before_delete = Path::new(&uploaded_file).exists();
     let deleted = delete(&filter, "/api/temporary").await;
 
     assert_eq!(registered, StatusCode::OK);
     assert!(existed_before_delete);
     assert_eq!(deleted, StatusCode::OK);
-    assert!(endpoints.lock().await.is_empty());
+    assert!(endpoints.is_empty());
     assert!(!Path::new(&uploaded_file).exists());
 }
 
@@ -161,9 +159,9 @@ async fn test_registering_a_path_again_removes_the_previous_upload() {
     let fields = [("path", "/api/replaced"), ("methods", "GET"), ("file", "{}")];
 
     register(&filter, &fields).await;
-    let first_file = endpoints.lock().await.get("/api/replaced").unwrap().endpoint.file.clone();
+    let first_file = endpoints.get("/api/replaced").unwrap().endpoint.file.clone();
     register(&filter, &fields).await;
-    let second_file = endpoints.lock().await.get("/api/replaced").unwrap().endpoint.file.clone();
+    let second_file = endpoints.get("/api/replaced").unwrap().endpoint.file.clone();
     delete(&filter, "/api/replaced").await;
 
     assert_ne!(first_file, second_file);

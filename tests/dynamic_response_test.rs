@@ -1,24 +1,23 @@
 use std::sync::Arc;
+use bytes::Bytes;
 use std::time::Duration;
 use serde_json::{json, Value};
-use tokio::sync::Mutex;
 use tokio::time::Instant;
 use warp::http::StatusCode;
 use warp::test::request;
 use warp::{Filter, Rejection, Reply};
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::grpc::GrpcMockResponse;
-use mockiapi::models::{AuthData, Endpoint, EndpointKind, RateLimit};
+use mockiapi::models::{AuthData, Endpoint, Endpoints, MockBody, RateLimit};
 use mockiapi::routes::mock_routes;
-use mockiapi::routing::EndpointStore;
 
 const BASIC_USER_PASS: &str = "Basic dXNlcjpwYXNz"; // user:pass
 
-fn endpoint(kind: EndpointKind, method: &str, file: &str) -> Endpoint {
+fn endpoint(body: MockBody, method: &str) -> Endpoint {
     Endpoint {
-        kind,
+        body,
         method: vec![method.to_string()],
-        file: file.to_string(),
+        file: String::new(),
         status_code: Some(200),
         rate_limit: None,
         authentication: None,
@@ -27,12 +26,30 @@ fn endpoint(kind: EndpointKind, method: &str, file: &str) -> Endpoint {
     }
 }
 
+fn file_content(file: &str) -> Bytes {
+    Bytes::from(std::fs::read(file).expect("fixture file is missing"))
+}
+
 fn credentials(json: &str) -> AuthData {
     serde_json::from_str(json).expect("credentials are not valid JSON")
 }
 
 fn rest_endpoint(file: &str) -> Endpoint {
-    endpoint(EndpointKind::Rest, "GET", file)
+    endpoint(MockBody::Raw(file_content(file)), "GET")
+}
+
+fn rest_post_endpoint(file: &str) -> Endpoint {
+    endpoint(MockBody::Raw(file_content(file)), "POST")
+}
+
+fn graphql_endpoint(file: &str) -> Endpoint {
+    let document = serde_json::from_slice(&file_content(file)).expect("fixture is not valid JSON");
+
+    endpoint(MockBody::GraphQl(document), "POST")
+}
+
+fn grpc_endpoint() -> Endpoint {
+    endpoint(MockBody::Grpc, "POST")
 }
 
 /// Builds the same filter chain the server uses, so the tests see what a client sees.
@@ -40,13 +57,13 @@ fn routes_with_registry(
     registered: Vec<(&'static str, Endpoint)>,
     registry: Arc<GrpcRegistry>,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
-    let mut store = EndpointStore::default();
+    let endpoints = Endpoints::default();
 
     for (path, endpoint) in registered {
-        store.insert(path.to_string(), endpoint);
+        endpoints.insert(path.to_string(), endpoint);
     }
 
-    mock_routes(Arc::new(Mutex::new(store)), registry)
+    mock_routes(endpoints, registry)
 }
 
 fn routes(
@@ -82,7 +99,7 @@ async fn test_valid_request_without_auth() {
 async fn test_rest_request_with_body_returns_the_mock() {
     let filter = routes(vec![(
         "/public",
-        endpoint(EndpointKind::Rest, "POST", "uploads/file.json"),
+        rest_post_endpoint("uploads/file.json"),
     )]);
 
     let res = request()
@@ -279,7 +296,7 @@ async fn test_rate_limit_is_shared_by_every_value_of_a_templated_path() {
 
 #[tokio::test]
 async fn test_extract_params_from_request_body() {
-    let mut dynamic = endpoint(EndpointKind::Rest, "POST", "uploads/dynamic_vars.json");
+    let mut dynamic = rest_post_endpoint("uploads/dynamic_vars.json");
     dynamic.with_dynamic_vars = Some(true);
     let filter = routes(vec![("/api/user", dynamic)]);
 
@@ -302,7 +319,7 @@ async fn test_extract_params_from_request_body() {
 async fn test_graphql_endpoint_answers_the_operation() {
     let filter = routes(vec![(
         "/api/graphql",
-        endpoint(EndpointKind::GraphQl, "POST", "uploads/graphql.json"),
+        graphql_endpoint("uploads/graphql.json"),
     )]);
 
     let res = request()
@@ -317,10 +334,24 @@ async fn test_graphql_endpoint_answers_the_operation() {
 }
 
 #[tokio::test]
+async fn test_graphql_endpoint_does_not_know_the_operation() {
+    let filter = routes(vec![("/api/graphql", graphql_endpoint("uploads/graphql.json"))]);
+
+    let res = request()
+        .method("POST")
+        .path("/api/graphql")
+        .json(&json!({ "query": "query nonExistent { id }" }))
+        .reply(&filter)
+        .await;
+
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn test_graphql_endpoint_rejects_a_body_that_is_not_graphql() {
     let filter = routes(vec![(
         "/api/graphql",
-        endpoint(EndpointKind::GraphQl, "POST", "uploads/graphql.json"),
+        graphql_endpoint("uploads/graphql.json"),
     )]);
 
     let res = request()
@@ -337,7 +368,7 @@ async fn test_graphql_endpoint_rejects_a_body_that_is_not_graphql() {
 async fn test_graphql_endpoint_rejects_a_query_that_does_not_parse() {
     let filter = routes(vec![(
         "/api/graphql",
-        endpoint(EndpointKind::GraphQl, "POST", "uploads/graphql.json"),
+        graphql_endpoint("uploads/graphql.json"),
     )]);
 
     let res = request()
@@ -359,7 +390,7 @@ async fn test_grpc_endpoint_applies_the_delay_once() {
             "GetBook",
             GrpcMockResponse { output: json!({}), delay_ms: Some(300), status: Some(200) },
         );
-    let mut grpc = endpoint(EndpointKind::Grpc, "POST", "uploads/file.json");
+    let mut grpc = grpc_endpoint();
     grpc.delay = Some(300);
     let filter = routes_with_registry(vec![("/grpc", grpc)], registry);
 
@@ -379,7 +410,7 @@ async fn test_grpc_endpoint_applies_the_delay_once() {
 
 #[tokio::test]
 async fn test_grpc_endpoint_rejects_a_body_that_is_not_a_call() {
-    let filter = routes(vec![("/grpc", endpoint(EndpointKind::Grpc, "POST", "uploads/file.json"))]);
+    let filter = routes(vec![("/grpc", grpc_endpoint())]);
 
     let res = request().method("POST").path("/grpc").body("not a call").reply(&filter).await;
 
@@ -396,7 +427,7 @@ async fn test_grpc_endpoint_answers_the_registered_mock() {
             GrpcMockResponse { output: json!({ "id": "b123" }), delay_ms: None, status: Some(200) },
         );
     let filter = routes_with_registry(
-        vec![("/grpc", endpoint(EndpointKind::Grpc, "POST", "uploads/file.json"))],
+        vec![("/grpc", grpc_endpoint())],
         registry,
     );
 

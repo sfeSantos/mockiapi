@@ -3,12 +3,31 @@ use graphql_parser::parse_query;
 use graphql_parser::query::{Definition, OperationDefinition, Selection, SelectionSet};
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
-use crate::models::InvalidGraphQLRequest;
+use warp::http::{Response, StatusCode};
+use warp::hyper::Body;
+use crate::models::MockError;
+use crate::utils::json_response;
+
+/// The body is not a named GraphQL query or mutation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidGraphQLRequest;
 
 #[derive(Deserialize)]
 struct GraphQLRequest<'a> {
     #[serde(borrow)]
     query: Cow<'a, str>,
+}
+
+/// Answers a GraphQL request over HTTP from the mock document of an endpoint.
+pub fn respond(status: StatusCode, mock: &Value, body: &[u8]) -> Result<Response<Body>, MockError> {
+    let body = std::str::from_utf8(body).map_err(|_| MockError::InvalidGraphQLRequest)?;
+    let answer = process_graphql(body, mock)
+        .map_err(|_| MockError::InvalidGraphQLRequest)?
+        .ok_or(MockError::NotFound)?;
+    // Serializing a `Value` cannot fail: its keys are strings and it holds no custom types.
+    let answer = serde_json::to_vec(&answer).unwrap_or_default();
+
+    Ok(json_response(status, answer))
 }
 
 /// Answers a GraphQL request from a mock document shaped as
