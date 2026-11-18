@@ -864,7 +864,6 @@ dependencies = [
  "futures",
  "graphql-parser",
  "log",
- "regex",
  "serde",
  "serde_json",
  "tokio",
