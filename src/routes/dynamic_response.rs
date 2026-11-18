@@ -5,13 +5,14 @@ use warp::http::header::CONTENT_TYPE;
 use warp::http::{HeaderValue, Method, Response, StatusCode};
 use warp::path::FullPath;
 use warp::hyper::body::Bytes;
+use warp::hyper::Body;
 use crate::handlers::graphql::{handle_graphql};
 use crate::handlers::grpc::{handle_grpc};
 use crate::handlers::params::get_body_from_request;
 use crate::middlewares::authentication::{validate_auth};
 use crate::middlewares::dynamic_vars;
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{EndpointKind, Endpoints, GrpcMockNotFound, InvalidGraphQLRequest, MethodNotAllowed, NotFound, Unauthorized};
+use crate::models::{EndpointKind, Endpoints, InvalidGrpcRequest, InvalidGraphQLRequest, MethodNotAllowed, NotFound, Unauthorized};
 use crate::middlewares::rate_limit::{check_rate_limit, RateLimitTracker};
 use crate::routing::Route;
 use crate::utils::add_possible_delay;
@@ -59,11 +60,13 @@ pub async fn serve_dynamic_response(
     // The protocol is known since registration, so the body is never sniffed.
     let response = match endpoint.kind {
         EndpointKind::GraphQl => handle_graphql(body_as_str(&body), endpoint, &json_file_content)
-            .ok_or_else(|| warp::reject::custom(InvalidGraphQLRequest))?,
-        EndpointKind::Grpc => handle_grpc(body_as_str(&body), grpc_registry)
+            .ok_or_else(|| warp::reject::custom(InvalidGraphQLRequest))?
+            .map(Body::from),
+        EndpointKind::Grpc => handle_grpc(body.as_deref().unwrap_or_default(), &grpc_registry)
             .await
-            .ok_or_else(|| warp::reject::custom(GrpcMockNotFound))?,
-        EndpointKind::Rest => rest_response(json_file_content, &route, path.as_str(), &query, body),
+            .ok_or_else(|| warp::reject::custom(InvalidGrpcRequest))?,
+        EndpointKind::Rest => rest_response(json_file_content, &route, path.as_str(), &query, body)
+            .map(Body::from),
     };
 
     Ok(response)

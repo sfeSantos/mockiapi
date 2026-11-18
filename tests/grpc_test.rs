@@ -17,7 +17,7 @@ async fn test_grpc_handler_success() {
             delay_ms: None,
             status: Some(200),
         }
-    ).await;
+    );
 
     let req = GrpcMockRequest {
         service: "UserService".into(),
@@ -69,7 +69,7 @@ async fn test_grpc_handler_with_delay() {
             delay_ms: Some(200),
             status: Some(200),
         }
-    ).await;
+    );
 
     let req = GrpcMockRequest {
         service: "UserService".into(),
@@ -98,7 +98,7 @@ async fn test_grpc_handler_custom_status_code() {
             delay_ms: None,
             status: Some(409),
         }
-    ).await;
+    );
 
     let req = GrpcMockRequest {
         service: "UserService".into(),
@@ -135,7 +135,7 @@ async fn test_null_input_payload() {
         output: json!({"ok": true}),
         delay_ms: None,
         status: Some(200),
-    }).await;
+    });
 
     let req = GrpcMockRequest {
         service: "TestService".into(),
@@ -156,7 +156,7 @@ async fn test_input_with_extra_fields() {
         output: json!({"message": "Received"}),
         delay_ms: None,
         status: Some(200),
-    }).await;
+    });
 
     let req = GrpcMockRequest {
         service: "TestService".into(),
@@ -177,7 +177,7 @@ async fn test_large_input_payload() {
         output: json!({"status": "ok"}),
         delay_ms: None,
         status: Some(200),
-    }).await;
+    });
 
     let big_string = "x".repeat(100_000);
     let req = GrpcMockRequest {

@@ -44,7 +44,7 @@ pub async fn delete_endpoint(path_to_delete: String, endpoints: Endpoints, grpc_
             && !store.iter().any(|remaining| remaining.endpoint.kind == EndpointKind::Grpc);
 
         if is_last_grpc_endpoint {
-            grpc_registry.clear().await;
+            grpc_registry.clear();
         }
 
         return Ok(reply::with_status("Deleted successfully", StatusCode::OK));
