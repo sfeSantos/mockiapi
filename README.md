@@ -110,6 +110,18 @@ GET /api/user/123/item/laptop?name=John
   "timestamp": "2025-03-31T12:00:00Z"
 }
 ```
+The `Dynamic Vars` option has to be checked for the placeholders to be replaced. Values come from:
+
+- `{name}` segments of the registered path
+- query parameters of the request, by their own name
+- top-level fields of a JSON request body
+
+A `{name}` segment matches any value, so one endpoint answers `/api/user/1`, `/api/user/2` and so on. A fixed query value in the registered path, such as `/search?kind=book`, must be present in the request, in any position.
+
+### ⏱️ Rate Limit Format
+
+The rate limit field takes `<requests>/<window in ms>`. For example, `10/1000` allows 10 requests per second for each HTTP method of the endpoint. Leave it empty for no limit.
+
 ### 3️⃣ GraphQL Mock Example
 
 _Check `graphql.json` in uploads folder_
