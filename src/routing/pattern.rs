@@ -109,10 +109,11 @@ impl RoutePattern {
 
         for (key, value) in form_urlencoded::parse(query.as_bytes()) {
             for rule in &self.query {
-                if let Token::Param(alias) = &rule.value {
-                    if rule.key == key && alias.as_str() != key {
-                        variables.insert(alias.clone(), value.to_string());
-                    }
+                if let Token::Param(alias) = &rule.value
+                    && rule.key == key
+                    && alias.as_str() != key
+                {
+                    variables.insert(alias.clone(), value.to_string());
                 }
             }
 

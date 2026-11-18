@@ -4,7 +4,7 @@ use uuid::Uuid;
 use warp::http::StatusCode;
 use warp::multipart::{FormData, Part};
 use crate::models::grpc::GrpcMockResponse;
-use crate::models::{AuthData, Endpoint, EndpointKind, RateLimit, RegistrationError};
+use crate::models::{AuthData, Endpoint, MockBody, RateLimit, RegistrationError};
 
 /// Directory the uploaded mock files are written to, relative to the working directory.
 pub const UPLOADS_DIR: &str = "uploads";
@@ -99,30 +99,24 @@ impl RegistrationForm {
         let with_dynamic_vars = self.with_dynamic_vars.map(|flag| flag == "true");
         let grpc_target = parse_grpc_target(non_empty(self.grpc_service), non_empty(self.grpc_rpc))?;
 
-        let kind = if grpc_target.is_some() {
-            EndpointKind::Grpc
-        } else if self.is_graphql.as_deref() == Some("true") {
-            EndpointKind::GraphQl
-        } else {
-            EndpointKind::Rest
-        };
-
-        if kind == EndpointKind::GraphQl && serde_json::from_slice::<serde_json::Value>(&upload).is_err() {
-            return Err(INVALID_JSON_FILE);
-        }
-
-        let grpc = match grpc_target {
+        let (body, grpc) = match grpc_target {
             Some((service, rpc)) => {
                 let output = serde_json::from_slice(&upload).map_err(|_| INVALID_JSON_FILE)?;
                 let response = GrpcMockResponse { output, delay_ms: delay, status: Some(status_code) };
 
-                Some(GrpcRegistration { service, rpc, response })
+                (MockBody::Grpc, Some(GrpcRegistration { service, rpc, response }))
             }
-            None => None,
+            None if self.is_graphql.as_deref() == Some("true") => {
+                let document = serde_json::from_slice(&upload).map_err(|_| INVALID_JSON_FILE)?;
+
+                (MockBody::GraphQl(document), None)
+            }
+            // Cloning `Bytes` shares the upload with the copy that is written to disk.
+            None => (MockBody::Raw(upload.clone()), None),
         };
 
         let endpoint = Endpoint {
-            kind,
+            body,
             method,
             file: format!("{UPLOADS_DIR}/{}.json", Uuid::new_v4()),
             status_code: Some(status_code),
@@ -232,6 +226,7 @@ async fn part_bytes(part: Part) -> Result<Bytes, RegistrationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::EndpointKind;
 
     fn form() -> RegistrationForm {
         RegistrationForm {
@@ -251,7 +246,7 @@ mod tests {
         let registration = form().validate().unwrap();
 
         assert_eq!(registration.path, "/api/hello");
-        assert_eq!(registration.endpoint.kind, EndpointKind::Rest);
+        assert_eq!(registration.endpoint.kind(), EndpointKind::Rest);
         assert_eq!(registration.endpoint.method, ["GET"]);
         assert_eq!(registration.endpoint.status_code, Some(200));
         assert!(registration.endpoint.authentication.is_none());
@@ -273,7 +268,7 @@ mod tests {
         .validate()
         .unwrap();
 
-        assert_eq!(registration.endpoint.kind, EndpointKind::Rest);
+        assert_eq!(registration.endpoint.kind(), EndpointKind::Rest);
         assert_eq!(registration.endpoint.status_code, Some(200));
         assert_eq!(registration.endpoint.delay, None);
         assert!(registration.endpoint.authentication.is_none());
@@ -314,7 +309,7 @@ mod tests {
         .unwrap();
         let grpc = registration.grpc.unwrap();
 
-        assert_eq!(registration.endpoint.kind, EndpointKind::Grpc);
+        assert_eq!(registration.endpoint.kind(), EndpointKind::Grpc);
         assert_eq!(grpc.service, "com.example.BookService");
         assert_eq!(grpc.rpc, "GetBook");
         assert_eq!(grpc.response.output["id"], "b123");

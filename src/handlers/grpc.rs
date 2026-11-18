@@ -6,6 +6,7 @@ use warp::http::{Response, StatusCode};
 use warp::hyper::Body;
 use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::grpc::GrpcMockRequest;
+use crate::models::MockError;
 use crate::utils::json_response;
 
 const MOCK_NOT_FOUND: &str = r#"{"error":"Mock not found"}"#;
@@ -20,11 +21,11 @@ struct GrpcCall<'a> {
     rpc: Cow<'a, str>,
 }
 
-/// Answers a simulated gRPC call sent as JSON. Returns `None` when the body is not a call.
-pub async fn handle_grpc(body: &[u8], registry: &GrpcRegistry) -> Option<Response<Body>> {
-    let call = serde_json::from_slice::<GrpcCall>(body).ok()?;
+/// Answers a simulated gRPC call sent as a JSON body.
+pub async fn respond(body: &[u8], registry: &GrpcRegistry) -> Result<Response<Body>, MockError> {
+    let call = serde_json::from_slice::<GrpcCall>(body).map_err(|_| MockError::InvalidGrpcRequest)?;
 
-    Some(answer(&call.service, &call.rpc, registry).await)
+    Ok(answer(&call.service, &call.rpc, registry).await)
 }
 
 /// Answers a call that was already decoded.
