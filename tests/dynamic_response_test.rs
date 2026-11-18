@@ -9,7 +9,7 @@ use warp::{Filter, Rejection, Reply};
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::middlewares::rate_limit::new_rate_limit;
 use mockiapi::models::grpc::GrpcMockResponse;
-use mockiapi::models::{Endpoint, EndpointKind, RateLimit};
+use mockiapi::models::{AuthData, Endpoint, EndpointKind, RateLimit};
 use mockiapi::routes::mock_routes;
 use mockiapi::routing::EndpointStore;
 
@@ -26,6 +26,10 @@ fn endpoint(kind: EndpointKind, method: &str, file: &str) -> Endpoint {
         delay: None,
         with_dynamic_vars: None,
     }
+}
+
+fn credentials(json: &str) -> AuthData {
+    serde_json::from_str(json).expect("credentials are not valid JSON")
 }
 
 fn rest_endpoint(file: &str) -> Endpoint {
@@ -105,7 +109,7 @@ async fn test_method_not_allowed() {
 #[tokio::test]
 async fn test_valid_request_with_basic_auth() {
     let mut protected = rest_endpoint("uploads/file.json");
-    protected.authentication = Some(String::from("{\"username\": \"user\", \"password\": \"pass\"}"));
+    protected.authentication = Some(credentials("{\"username\": \"user\", \"password\": \"pass\"}"));
     let filter = routes(vec![("/protected", protected)]);
 
     let res = request()
@@ -121,7 +125,7 @@ async fn test_valid_request_with_basic_auth() {
 #[tokio::test]
 async fn test_invalid_authentication() {
     let mut protected = rest_endpoint("uploads/file.json");
-    protected.authentication = Some(String::from("{\"username\": \"user1\", \"password\": \"password1\"}"));
+    protected.authentication = Some(credentials("{\"username\": \"user1\", \"password\": \"password1\"}"));
     let filter = routes(vec![("/protected", protected)]);
 
     let res = request()
@@ -137,7 +141,7 @@ async fn test_invalid_authentication() {
 #[tokio::test]
 async fn test_missing_authentication() {
     let mut protected = rest_endpoint("uploads/file.json");
-    protected.authentication = Some(String::from("{\"username\": \"user\", \"password\": \"pass\"}"));
+    protected.authentication = Some(credentials("{\"username\": \"user\", \"password\": \"pass\"}"));
     let filter = routes(vec![("/protected", protected)]);
 
     let res = request().method("GET").path("/protected").reply(&filter).await;
@@ -148,7 +152,7 @@ async fn test_missing_authentication() {
 #[tokio::test]
 async fn test_valid_request_with_bearer_auth() {
     let mut secure = rest_endpoint("uploads/file.json");
-    secure.authentication = Some(String::from("{\"tokenData\": \"SOME_LONG_TOKEN\"}"));
+    secure.authentication = Some(credentials("{\"tokenData\": \"SOME_LONG_TOKEN\"}"));
     let filter = routes(vec![("/secure", secure)]);
 
     let res = request()

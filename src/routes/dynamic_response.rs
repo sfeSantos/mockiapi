@@ -38,7 +38,7 @@ pub async fn serve_dynamic_response(
     }
 
     if let Some(auth) = &endpoint.authentication {
-        if !validate_auth(Some(auth.clone()), auth_header) {
+        if !validate_auth(auth, auth_header.as_deref()) {
             return Err(warp::reject::custom(Unauthorized));
         }
     }
