@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::sync::Arc;
 use warp::http::header::AUTHORIZATION;
 use warp::{Filter, Rejection, Reply};
@@ -23,7 +24,7 @@ pub fn admin_routes(
         .and(warp::path!("register"))
         .and(warp::multipart::form().max_length(MAX_UPLOAD_BYTES))
         .and(with_endpoints(endpoints.clone()))
-        .and(warp::any().map(move || Arc::clone(&grpc_registry)))
+        .and(with_grpc_registry(Arc::clone(&grpc_registry)))
         .and_then(register_endpoint);
     let list = warp::get()
         .and(warp::path!("list"))
@@ -32,6 +33,7 @@ pub fn admin_routes(
     let delete = warp::delete()
         .and(warp::path!("delete" / String))
         .and(with_endpoints(endpoints))
+        .and(with_grpc_registry(grpc_registry))
         .and_then(delete_endpoint);
 
     register.or(list).or(delete)
@@ -59,7 +61,13 @@ pub fn mock_routes(
         .and(with_endpoints(endpoints))
         .and(with_rate_limiter(rate_limiter))
         .and(optional_body)
-        .and(warp::any().map(move || Arc::clone(&grpc_registry)))
+        .and(with_grpc_registry(grpc_registry))
         .and_then(serve_dynamic_response)
         .recover(handle_rejection)
+}
+
+fn with_grpc_registry(
+    grpc_registry: Arc<GrpcRegistry>,
+) -> impl Filter<Extract = (Arc<GrpcRegistry>,), Error = Infallible> + Clone {
+    warp::any().map(move || Arc::clone(&grpc_registry))
 }

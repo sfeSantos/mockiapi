@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use warp::http::StatusCode;
@@ -16,6 +17,18 @@ fn new_endpoints() -> Endpoints {
 
 fn admin(endpoints: Endpoints) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     admin_routes(endpoints, Arc::new(GrpcRegistry::new()))
+}
+
+async fn delete(
+    filter: &(impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone + 'static),
+    path: &str,
+) -> StatusCode {
+    request()
+        .method("DELETE")
+        .path(&format!("/delete/{}", urlencoding::encode(path)))
+        .reply(filter)
+        .await
+        .status()
 }
 
 /// Encodes the fields the dashboard form sends, with `file` going out as the uploaded JSON.
@@ -94,4 +107,49 @@ async fn test_grpc_service_without_rpc_is_rejected() {
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(endpoints.lock().await.is_empty());
+}
+
+#[tokio::test]
+async fn test_delete_removes_the_endpoint_and_its_uploaded_file() {
+    let endpoints = new_endpoints();
+    let filter = admin(endpoints.clone());
+
+    let registered = register(
+        &filter,
+        &[("path", "/api/temporary"), ("methods", "GET"), ("file", "{\"ok\":true}")],
+    )
+    .await;
+    let uploaded_file = endpoints.lock().await["/api/temporary"].file.clone();
+    let existed_before_delete = Path::new(&uploaded_file).exists();
+    let deleted = delete(&filter, "/api/temporary").await;
+
+    assert_eq!(registered, StatusCode::OK);
+    assert!(existed_before_delete);
+    assert_eq!(deleted, StatusCode::OK);
+    assert!(endpoints.lock().await.is_empty());
+    assert!(!Path::new(&uploaded_file).exists());
+}
+
+#[tokio::test]
+async fn test_delete_removes_the_grpc_mocks_of_the_endpoint() {
+    let registry = Arc::new(GrpcRegistry::new());
+    let filter = admin_routes(new_endpoints(), Arc::clone(&registry));
+
+    register(
+        &filter,
+        &[
+            ("path", "/grpc"),
+            ("methods", "POST"),
+            ("grpcService", "com.example.BookService"),
+            ("grpcRPC", "GetBook"),
+            ("file", "{\"id\":\"b123\"}"),
+        ],
+    )
+    .await;
+    let mock_before_delete = registry.get_mock("com.example.BookService", "GetBook").await;
+    let deleted = delete(&filter, "/grpc").await;
+
+    assert!(mock_before_delete.is_some());
+    assert_eq!(deleted, StatusCode::OK);
+    assert!(registry.get_mock("com.example.BookService", "GetBook").await.is_none());
 }

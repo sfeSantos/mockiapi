@@ -19,6 +19,10 @@ impl GrpcRegistry {
         self.mocks.write().await.insert(key, response);
     }
 
+    pub async fn clear(&self) {
+        self.mocks.write().await.clear();
+    }
+
     pub async fn get_mock(&self, service: &str, method: &str) -> Option<GrpcMockResponse> {
         let registry = self.mocks.read().await;
 
