@@ -20,8 +20,9 @@ pub async fn register_endpoint(form: warp::multipart::FormData, endpoints: Endpo
 }
 
 pub async fn list_endpoint(endpoints: Endpoints) -> Result<impl Reply, Rejection> {
-    let endpoints_map = endpoints.lock().await.clone();
-    Ok(reply::json(&endpoints_map))
+    let store = endpoints.lock().await;
+
+    Ok(reply::json(&*store))
 }
 
 pub async fn delete_endpoint(path_to_delete: String, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<impl Reply, Rejection> {
@@ -29,8 +30,10 @@ pub async fn delete_endpoint(path_to_delete: String, endpoints: Endpoints, grpc_
         .map_err(|_| warp::reject::custom(NotFound))?
         .into_owned();
 
-    let mut endpoints_map = endpoints.lock().await;
-    if let Some(endpoint) = endpoints_map.remove(&decoded_path) {
+    let mut store = endpoints.lock().await;
+
+    if let Some(route) = store.remove(&decoded_path) {
+        let endpoint = &route.endpoint;
         // `file` already holds the full relative path the upload was written to.
         if tokio::fs::remove_file(&endpoint.file).await.is_err() {
             log::info!("Failed to delete file: {}", endpoint.file);
@@ -38,7 +41,7 @@ pub async fn delete_endpoint(path_to_delete: String, endpoints: Endpoints, grpc_
 
         // The registry is shared by every gRPC endpoint, so its mocks go away with the last one.
         let is_last_grpc_endpoint = endpoint.kind == EndpointKind::Grpc
-            && !endpoints_map.values().any(|remaining| remaining.kind == EndpointKind::Grpc);
+            && !store.iter().any(|remaining| remaining.endpoint.kind == EndpointKind::Grpc);
 
         if is_last_grpc_endpoint {
             grpc_registry.clear().await;

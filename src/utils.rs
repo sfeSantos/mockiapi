@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
 use log::info;
@@ -49,24 +48,6 @@ pub async fn add_possible_delay(endpoint: &Endpoint) {
 pub fn with_rate_limiter(rate_limiter: RateLimitTracker) -> 
            impl Filter<Extract = (RateLimitTracker,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || rate_limiter.clone())
-}
-
-/// Reconstructs the full URL by appending query parameters to the base path.
-///
-/// # Arguments
-/// * `path` - The base path (e.g., "/api/user/123/item/456").
-/// * `query_params` - An optional `HashMap` containing query parameters.
-///
-/// # Returns
-/// * A `String` representing the full URL with query parameters if any exist.
-pub fn reconstruct_full_url(path: &str, query_params: &Option<HashMap<String, String>>) -> String {
-    if let Some(params) = query_params {
-        if !params.is_empty() {
-            let query_string = serde_urlencoded::to_string(params).unwrap_or_default();
-            return format!("{}?{}", path, query_string);
-        }
-    }
-    path.to_string()
 }
 
 /// Handles rejections in the Warp web framework by returning appropriate HTTP responses.

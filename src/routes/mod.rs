@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::sync::Arc;
 use warp::http::header::AUTHORIZATION;
@@ -45,9 +44,8 @@ pub fn mock_routes(
     rate_limiter: RateLimitTracker,
     grpc_registry: Arc<GrpcRegistry>,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
-    let optional_query = warp::query::<HashMap<String, String>>()
-        .map(Some)
-        .or(warp::any().map(|| None))
+    let raw_query = warp::query::raw()
+        .or(warp::any().map(String::new))
         .unify();
     let optional_body = warp::body::bytes()
         .map(Some)
@@ -56,7 +54,7 @@ pub fn mock_routes(
 
     warp::method()
         .and(warp::path::full())
-        .and(optional_query)
+        .and(raw_query)
         .and(warp::header::optional::<String>(AUTHORIZATION.as_str()))
         .and(with_endpoints(endpoints))
         .and(with_rate_limiter(rate_limiter))
