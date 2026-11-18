@@ -9,6 +9,9 @@ use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::{Endpoint, EndpointKind, Endpoints, FileError, InvalidMultipart, InvalidRegistration, MultipartHandler, NotFound, RateLimit, Utf8Error};
 use crate::models::grpc::GrpcMockResponse;
 
+/// Directory the uploaded mock files are written to, relative to the working directory.
+pub const UPLOADS_DIR: &str = "uploads";
+
 impl MultipartHandler {
     
     pub async fn parse(form: warp::multipart::FormData, endpoints: Endpoints, grpc_registry: Arc<GrpcRegistry>) -> Result<(), Rejection> {
@@ -32,7 +35,7 @@ impl MultipartHandler {
                 "methods" => methods = Some(Self::part_to_string(part).await?),
                 "status_code" => status_code = Some(Self::part_to_string(part).await?.parse::<u16>().unwrap_or(200)),
                 "file" => {
-                    file_name = Some(format!("uploads/{}.json", Uuid::new_v4()));
+                    file_name = Some(format!("{UPLOADS_DIR}/{}.json", Uuid::new_v4()));
                     file_data = Self::part_to_bytes(part).await?;
                 }
                 "authentication" => {
