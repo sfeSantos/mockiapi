@@ -109,7 +109,7 @@ export async function registerEndpoint(formData) {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to register endpoint');
+            throw new Error(await registrationFailure(response));
         }
 
         await response.json();
@@ -121,6 +121,21 @@ export async function registerEndpoint(formData) {
     } finally {
         showLoader(false);
     }
+}
+
+// The server answers a refused form with the reason as a JSON string
+async function registrationFailure(response) {
+    try {
+        const reason = await response.json();
+
+        if (typeof reason === 'string') {
+            return reason;
+        }
+    } catch (error) {
+        // not JSON, fall back to the generic message
+    }
+
+    return 'Failed to register endpoint';
 }
 
 // Deleta um endpoint
@@ -200,6 +215,14 @@ export function handleSubmit(event, pathValue, methodsValue, status_codeValue, d
                              withDynamicVarsValue) {
     event.preventDefault();
 
+    // Both helpers notify the user and return undefined when the input is not usable
+    const selectedMethods = extractMethods(methodsValue);
+    const authentication = handleAuthentication(authTypeValue, usernameValue, passwordValue, tokenDataValue);
+
+    if (selectedMethods === undefined || authentication === undefined) {
+        return;
+    }
+
     const formData = new FormData();
 
     // Se for GraphQL, use um caminho padrão
@@ -209,11 +232,11 @@ export function handleSubmit(event, pathValue, methodsValue, status_codeValue, d
         formData.append("path", pathValue);
     }
 
-    formData.append("methods", extractMethods(methodsValue));
+    formData.append("methods", selectedMethods);
     formData.append("status_code", status_codeValue);
     formData.append("delay", delayValue);
     formData.append("rate_limit", rate_limitValue);
-    formData.append("authentication", handleAuthentication(authTypeValue, usernameValue, passwordValue, tokenDataValue));
+    formData.append("authentication", authentication);
     formData.append("with_dynamic_vars", Boolean(withDynamicVarsValue).toString());
     formData.append("isGraphQL", isGraphQLValue.toString());
     formData.append("grpcService", grpcService);
