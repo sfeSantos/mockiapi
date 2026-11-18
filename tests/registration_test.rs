@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -8,11 +7,12 @@ use warp::{Filter, Rejection, Reply};
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::Endpoints;
 use mockiapi::routes::admin_routes;
+use mockiapi::routing::EndpointStore;
 
 const BOUNDARY: &str = "mockiapi-test-boundary";
 
 fn new_endpoints() -> Endpoints {
-    Arc::new(Mutex::new(HashMap::new()))
+    Arc::new(Mutex::new(EndpointStore::default()))
 }
 
 fn admin(endpoints: Endpoints) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
@@ -119,7 +119,7 @@ async fn test_delete_removes_the_endpoint_and_its_uploaded_file() {
         &[("path", "/api/temporary"), ("methods", "GET"), ("file", "{\"ok\":true}")],
     )
     .await;
-    let uploaded_file = endpoints.lock().await["/api/temporary"].file.clone();
+    let uploaded_file = endpoints.lock().await.get("/api/temporary").unwrap().endpoint.file.clone();
     let existed_before_delete = Path::new(&uploaded_file).exists();
     let deleted = delete(&filter, "/api/temporary").await;
 

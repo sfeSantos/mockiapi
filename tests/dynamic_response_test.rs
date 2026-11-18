@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use serde_json::{json, Value};
@@ -12,6 +11,7 @@ use mockiapi::middlewares::rate_limit::new_rate_limit;
 use mockiapi::models::grpc::GrpcMockResponse;
 use mockiapi::models::{Endpoint, EndpointKind, RateLimit};
 use mockiapi::routes::mock_routes;
+use mockiapi::routing::EndpointStore;
 
 const BASIC_USER_PASS: &str = "Basic dXNlcjpwYXNz"; // user:pass
 
@@ -37,12 +37,13 @@ fn routes_with_registry(
     registered: Vec<(&'static str, Endpoint)>,
     registry: Arc<GrpcRegistry>,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
-    let endpoints_map: HashMap<String, Endpoint> = registered
-        .into_iter()
-        .map(|(path, endpoint)| (path.to_string(), endpoint))
-        .collect();
+    let mut store = EndpointStore::default();
 
-    mock_routes(Arc::new(Mutex::new(endpoints_map)), new_rate_limit(), registry)
+    for (path, endpoint) in registered {
+        store.insert(path.to_string(), endpoint);
+    }
+
+    mock_routes(Arc::new(Mutex::new(store)), new_rate_limit(), registry)
 }
 
 fn routes(
@@ -218,11 +219,11 @@ async fn test_custom_status_code() {
 async fn test_extract_params_from_request() {
     let mut dynamic = rest_endpoint("uploads/dynamic_vars.json");
     dynamic.with_dynamic_vars = Some(true);
-    let filter = routes(vec![("/api/user/123/item/456?id=789", dynamic)]);
+    let filter = routes(vec![("/api/user/{user}/item/{item}?name={name}", dynamic)]);
 
     let res = request()
         .method("GET")
-        .path("/api/user/123/item/456?id=789")
+        .path("/api/user/123/item/456?id=789&name=John")
         .reply(&filter)
         .await;
     let body = json_body(res.body());
@@ -231,6 +232,46 @@ async fn test_extract_params_from_request() {
     assert_eq!(body["user"], "123");
     assert_eq!(body["item"], "456");
     assert_eq!(body["id"], "789");
+    assert_eq!(body["name"], "John");
+}
+
+#[tokio::test]
+async fn test_templated_path_answers_any_value() {
+    let filter = routes(vec![("/api/user/{id}", rest_endpoint("uploads/file.json"))]);
+
+    let first = request().method("GET").path("/api/user/1").reply(&filter).await;
+    let second = request().method("GET").path("/api/user/2?verbose=true").reply(&filter).await;
+    let too_deep = request().method("GET").path("/api/user/2/orders").reply(&filter).await;
+
+    assert_eq!(first.status(), StatusCode::OK);
+    assert_eq!(second.status(), StatusCode::OK);
+    assert_eq!(too_deep.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_query_parameters_match_in_any_order() {
+    let filter = routes(vec![("/search?kind=book&lang=en&page=1", rest_endpoint("uploads/file.json"))]);
+
+    let same_order = request().method("GET").path("/search?kind=book&lang=en&page=1").reply(&filter).await;
+    let shuffled = request().method("GET").path("/search?page=1&kind=book&lang=en").reply(&filter).await;
+    let other_value = request().method("GET").path("/search?page=1&kind=film&lang=en").reply(&filter).await;
+
+    assert_eq!(same_order.status(), StatusCode::OK);
+    assert_eq!(shuffled.status(), StatusCode::OK);
+    assert_eq!(other_value.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_rate_limit_is_shared_by_every_value_of_a_templated_path() {
+    let mut limited = rest_endpoint("uploads/file.json");
+    limited.rate_limit = Some(RateLimit { requests: 1, window_ms: 60_000 });
+    let filter = routes(vec![("/api/user/{id}", limited)]);
+
+    let first = request().method("GET").path("/api/user/1").reply(&filter).await;
+    let second = request().method("GET").path("/api/user/2").reply(&filter).await;
+
+    assert_eq!(first.status(), StatusCode::OK);
+    assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
 }
 
 #[tokio::test]

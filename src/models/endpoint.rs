@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use std::sync::{Arc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+use crate::routing::EndpointStore;
 
-pub type Endpoints = Arc<Mutex<HashMap<String, Endpoint>>>;
+pub type Endpoints = Arc<Mutex<EndpointStore>>;
 
 /// Protocol an endpoint was registered for. It decides how a request is answered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
