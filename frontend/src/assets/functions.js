@@ -17,6 +17,7 @@ export const methods = writable({
 export const status_code = writable();
 export const delay = writable();
 export const rate_limit = writable('');
+export const with_dynamic_vars = writable(false);
 export const authType = writable('none');
 export const username = writable('');
 export const password = writable('');
@@ -153,6 +154,7 @@ export function resetForm() {
     status_code.set(null);
     delay.set(null);
     rate_limit.set('');
+    with_dynamic_vars.set(false);
     authType.set('none');
     username.set('');
     password.set('');
@@ -194,7 +196,8 @@ export function isAuthenticated(endpoint) {
 // Processa o envio do formulário
 export function handleSubmit(event, pathValue, methodsValue, status_codeValue, delayValue,
                              rate_limitValue, authTypeValue, usernameValue, passwordValue,
-                             tokenDataValue, response_fileValue, isGraphQLValue, grpcService, grpcRPC) {
+                             tokenDataValue, response_fileValue, isGraphQLValue, grpcService, grpcRPC,
+                             withDynamicVarsValue) {
     event.preventDefault();
 
     const formData = new FormData();
@@ -211,6 +214,7 @@ export function handleSubmit(event, pathValue, methodsValue, status_codeValue, d
     formData.append("delay", delayValue);
     formData.append("rate_limit", rate_limitValue);
     formData.append("authentication", handleAuthentication(authTypeValue, usernameValue, passwordValue, tokenDataValue));
+    formData.append("with_dynamic_vars", Boolean(withDynamicVarsValue).toString());
     formData.append("isGraphQL", isGraphQLValue.toString());
     formData.append("grpcService", grpcService);
     formData.append("grpcRPC", grpcRPC);
