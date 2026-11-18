@@ -42,7 +42,7 @@ pub async fn serve_dynamic_response(
         }
     }
 
-    check_rate_limit(path.as_str().to_string(), "GET", endpoint.rate_limit.as_ref(), rate_limiter.clone()).await?;
+    check_rate_limit(path.as_str().to_string(), method.as_str(), endpoint.rate_limit.as_ref(), rate_limiter.clone()).await?;
 
     if let Some(_) = endpoint.delay {
         add_possible_delay(&endpoint).await;

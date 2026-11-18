@@ -174,6 +174,22 @@ async fn test_rate_limit_exceeded() {
 }
 
 #[tokio::test]
+async fn test_rate_limit_is_counted_per_method() {
+    let mut limited = rest_endpoint("uploads/file.json");
+    limited.method = vec!["GET".to_string(), "POST".to_string()];
+    limited.rate_limit = Some(RateLimit { requests: 1, window_ms: 60_000 });
+    let filter = routes(vec![("/rate-limited", limited)]);
+
+    let get = request().method("GET").path("/rate-limited").reply(&filter).await;
+    let post = request().method("POST").path("/rate-limited").reply(&filter).await;
+    let second_post = request().method("POST").path("/rate-limited").reply(&filter).await;
+
+    assert_eq!(get.status(), StatusCode::OK);
+    assert_eq!(post.status(), StatusCode::OK);
+    assert_eq!(second_post.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
 async fn test_request_with_delay() {
     let mut delayed = rest_endpoint("uploads/file.json");
     delayed.delay = Some(200);
