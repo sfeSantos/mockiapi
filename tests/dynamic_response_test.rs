@@ -290,6 +290,23 @@ async fn test_graphql_endpoint_rejects_a_body_that_is_not_graphql() {
 }
 
 #[tokio::test]
+async fn test_graphql_endpoint_rejects_a_query_that_does_not_parse() {
+    let filter = routes(vec![(
+        "/api/graphql",
+        endpoint(EndpointKind::GraphQl, "POST", "uploads/graphql.json"),
+    )]);
+
+    let res = request()
+        .method("POST")
+        .path("/api/graphql")
+        .json(&json!({ "query": "query getUser { id " }))
+        .reply(&filter)
+        .await;
+
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn test_grpc_endpoint_answers_the_registered_mock() {
     let registry = Arc::new(GrpcRegistry::new());
     registry

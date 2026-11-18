@@ -41,7 +41,8 @@ pub fn process_graphql(body: &str, json_data: &str) -> Result<Option<String>, Re
     let operation_name = extract_operation_name(&gql_req.query)
         .ok_or_else(|| warp::reject::custom(InvalidGraphQLRequest))?;
 
-    let requested_fields = extract_requested_fields(&gql_req.query);
+    let requested_fields = extract_requested_fields(&gql_req.query)
+        .ok_or_else(|| warp::reject::custom(InvalidGraphQLRequest))?;
 
     // Check if it's a query or mutation
     let is_query = gql_req.query.trim_start().starts_with("query");
@@ -102,8 +103,9 @@ fn extract_operation_name(query: &str) -> Option<String> {
     None
 }
 
-fn extract_requested_fields(query: &str) -> HashSet<String> {
-    let ast = parse_query::<&str>(query).expect("Failed to parse query");
+/// Returns `None` when the query is not valid GraphQL.
+fn extract_requested_fields(query: &str) -> Option<HashSet<String>> {
+    let ast = parse_query::<&str>(query).ok()?;
     let mut fields = HashSet::new();
 
     for definition in ast.definitions {
@@ -116,14 +118,14 @@ fn extract_requested_fields(query: &str) -> HashSet<String> {
             };
 
             if owned_selection_set.items.is_empty() {
-                return HashSet::new();
+                return Some(HashSet::new());
             }
 
             collect_field_names_owned(&owned_selection_set, &mut fields);
         }
     }
 
-    fields
+    Some(fields)
 }
 
 fn collect_field_names_owned<'a>(selection_set: &SelectionSet<'a, &'a str>, fields: &mut HashSet<String>) {

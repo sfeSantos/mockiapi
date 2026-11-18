@@ -100,6 +100,13 @@ fn test_invalid_json_request() {
 }
 
 #[test]
+fn test_query_that_does_not_parse() {
+    let request = r#"{ "query": "query getUser { id " }"#;
+    let result = process_graphql(request, mock_json_data());
+    assert!(result.is_err());
+}
+
+#[test]
 fn test_partial_fields() {
     let request = r#"{ "query": "query getUser { name }" }"#;
     let result = process_graphql(request, mock_json_data()).unwrap().unwrap();
