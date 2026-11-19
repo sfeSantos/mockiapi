@@ -1,6 +1,16 @@
 <script lang="ts">
-    import { untrack } from 'svelte';
-    import { canKeepResponse, draftOf, emptyDraft, GRAPHQL_PATH, GRPC_PATH, toFormData } from './registration';
+    import { onMount, untrack } from 'svelte';
+    import { fetchContent } from './api';
+    import {
+        canKeepResponse,
+        draftOf,
+        emptyDraft,
+        formatJson,
+        GRAPHQL_PATH,
+        GRPC_PATH,
+        toFormData,
+    } from './registration';
+    import type { ResponseSource } from './registration';
     import { ENDPOINT_KINDS, HTTP_METHODS } from './types';
     import type { Endpoint, EndpointKind } from './types';
 
@@ -21,6 +31,30 @@
     let kind = $state<EndpointKind>(untrack(() => endpoint?.type ?? 'REST'));
     let draft = $state(untrack(() => (endpoint ? draftOf(endpoint) : emptyDraft())));
     let fileInput = $state<HTMLInputElement>();
+    /** The response the endpoint holds on the server, once it has been loaded. */
+    let storedText = $state<string | null>(null);
+
+    const RESPONSE_SOURCES: { source: ResponseSource; label: string }[] = [
+        { source: 'file', label: 'File' },
+        { source: 'text', label: 'Text' },
+    ];
+
+    onMount(showStoredResponse);
+
+    /** A gRPC endpoint holds one response per mock, so there is no single one to show. */
+    async function showStoredResponse() {
+        if (!endpoint || endpoint.type === 'gRPC') {
+            return;
+        }
+
+        try {
+            storedText = await fetchContent(endpoint.path);
+            draft.responseText = storedText;
+            draft.responseSource = 'text';
+        } catch {
+            // The editor still works without it: a file can be chosen to replace the response.
+        }
+    }
 
     const fixedPath = $derived(kind === 'GraphQL' ? GRAPHQL_PATH : GRPC_PATH);
     const title = $derived(kind === 'REST' ? draft.path || 'New endpoint' : fixedPath);
@@ -39,13 +73,21 @@
         }
     }
 
+    function format() {
+        try {
+            draft.responseText = formatJson(draft.responseText);
+        } catch (error) {
+            oninvalid(error instanceof Error ? error.message : 'The response could not be formatted');
+        }
+    }
+
     async function submit(event: SubmitEvent) {
         event.preventDefault();
 
         let form: FormData;
 
         try {
-            form = toFormData(kind, draft, editing);
+            form = toFormData(kind, draft, editing, storedText);
         } catch (error) {
             oninvalid(error instanceof Error ? error.message : 'The form could not be sent');
             return;
@@ -135,15 +177,59 @@
             {/if}
 
             <div class="form-group wide">
-                <label for="response-file">Response (JSON File)</label>
+                <div class="response-heading">
+                    {#if draft.responseSource === 'file'}
+                        <label for="response-file">Response (JSON File)</label>
+                    {:else}
+                        <label for="response-text">Response (JSON Text)</label>
+                    {/if}
+
+                    <div class="segmented" role="group" aria-label="Response source">
+                        {#each RESPONSE_SOURCES as { source, label }}
+                            <button
+                                type="button"
+                                class:active={draft.responseSource === source}
+                                aria-pressed={draft.responseSource === source}
+                                onclick={() => (draft.responseSource = source)}
+                            >
+                                {label}
+                            </button>
+                        {/each}
+                    </div>
+                </div>
+
+                <!-- Hidden, not removed: the chosen file lives in the element. -->
                 <input
                     type="file"
                     id="response-file"
                     accept="application/json"
+                    hidden={draft.responseSource !== 'file'}
                     bind:this={fileInput}
                     onchange={selectFile}
                 />
-                {#if fileIsOptional}
+
+                {#if draft.responseSource === 'text'}
+                    <textarea
+                        id="response-text"
+                        class="code"
+                        rows="10"
+                        spellcheck="false"
+                        bind:value={draft.responseText}
+                        placeholder={'{ "message": "Hello, world!" }'}
+                    ></textarea>
+                    <div class="response-footer">
+                        <small>
+                            {#if storedText !== null}
+                                This is what the endpoint answers now. Change it and save.
+                            {:else if fileIsOptional}
+                                Leave it empty to keep the current response.
+                            {:else}
+                                Type or paste the response.
+                            {/if}
+                        </small>
+                        <button class="btn-secondary" type="button" onclick={format}>Format</button>
+                    </div>
+                {:else if fileIsOptional}
                     <small>Leave it empty to keep the current response.</small>
                 {/if}
             </div>

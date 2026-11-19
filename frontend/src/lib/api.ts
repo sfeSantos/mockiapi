@@ -16,6 +16,17 @@ export async function listEndpoints(): Promise<Endpoint[]> {
         .map(([path, endpoint]) => ({ path, ...endpoint }));
 }
 
+/** The response an endpoint was registered with, as the text that was uploaded. */
+export async function fetchContent(path: string): Promise<string> {
+    const response = await fetch(`/content/${encodeURIComponent(path)}`);
+
+    if (!response.ok) {
+        throw new Error('Failed to load the response of the endpoint');
+    }
+
+    return response.text();
+}
+
 export async function registerEndpoint(form: FormData): Promise<void> {
     const response = await fetch('/register', { method: 'POST', body: form });
 
