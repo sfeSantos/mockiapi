@@ -1,8 +1,14 @@
+<p align="center">
+  <img src="frontend/public/mockiapi.svg" width="96" height="96" alt="The mockiapi icon: an orange mockingbird">
+</p>
+
 # mockiapi
 
 mockiapi is a mock HTTP server. You tell it "when a request arrives at this path, answer with this JSON file", and it does. Your frontend, mobile app or integration test can then talk to `http://localhost:3001` while the real API is not ready or not reachable.
 
 Endpoints are registered while the server is running, from a web dashboard or with `curl`. Nothing is configured in files and nothing needs a restart.
+
+The bird in the icon is a mockingbird. A mockingbird copies the songs of other birds well enough to pass for them, and mockiapi does the same for an API: it answers the way the real one would, so the code calling it cannot tell the difference.
 
 What an endpoint can do:
 
