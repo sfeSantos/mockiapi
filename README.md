@@ -585,7 +585,14 @@ git push origin v0.1.9
 
 The workflow then checks that the tag matches `Cargo.toml`, creates a GitHub release named after the tag with notes generated from the merged pull requests, attaches the Linux, macOS and Windows binaries to it, and publishes the crate to crates.io. The crate goes last, because a version published there cannot be replaced.
 
-Publishing the crate needs a repository secret named `CARGO_REGISTRY_TOKEN`, holding a crates.io API token. The Docker image is not built by the workflow.
+The same tag also builds the Docker image and pushes it to Docker Hub as `edufsantos/mockiapi:<version>` and `latest`. That is a workflow of its own, **Docker**, which can also be run by hand from the Actions tab to build the image of a tag that already exists.
+
+The repository secrets these need:
+
+| Secret | For |
+|---|---|
+| `CARGO_REGISTRY_TOKEN` | A crates.io API token, to publish the crate |
+| `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` | A Docker Hub user and access token that can push `edufsantos/mockiapi` |
 
 ## License
 
