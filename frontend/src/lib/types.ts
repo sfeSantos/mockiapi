@@ -11,6 +11,13 @@ export interface RateLimit {
     window_ms: number;
 }
 
+/** Basic auth fills the username and password, a bearer token fills `tokenData`. */
+export interface AuthData {
+    username: string | null;
+    password: string | null;
+    tokenData: string | null;
+}
+
 /** An endpoint as `GET /list` describes it, with the path it is registered on. */
 export interface Endpoint {
     path: string;
@@ -22,7 +29,7 @@ export interface Endpoint {
     rate_limit: RateLimit | null;
     with_dynamic_vars: boolean | null;
     /** Present only when the endpoint asks for credentials. */
-    authentication?: unknown;
+    authentication?: AuthData;
 }
 
 export type NoticeKind = 'success' | 'error';

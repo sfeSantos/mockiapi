@@ -27,7 +27,7 @@ Two things to know before you start:
 5. [Protect an endpoint](#5-protect-an-endpoint)
 6. [Mock a GraphQL API](#6-mock-a-graphql-api)
 7. [Mock a gRPC call](#7-mock-a-grpc-call)
-8. [List and delete endpoints](#8-list-and-delete-endpoints)
+8. [List, change and delete endpoints](#8-list-change-and-delete-endpoints)
 9. [Reference](#reference)
 
 ## 1. Start the server
@@ -77,7 +77,7 @@ The server prints:
 .: Server running at http://localhost:3001
 ```
 
-Open http://localhost:3001 in a browser. You should see the **MockiAPI Dashboard**, with a registration form and an empty list of endpoints.
+Open http://localhost:3001 in a browser. You should see the **MockiAPI Dashboard** in three columns: the list of endpoints, empty for now, the form for a new endpoint, and a **Try it** panel.
 
 The server creates an `uploads` directory in the directory it was started from. That is where it keeps a copy of each response file.
 
@@ -97,7 +97,7 @@ Create a file named `hello.json`:
 | HTTP Methods | GET |
 | Response (JSON File) | `hello.json` |
 
-Leave the other fields empty and click **Register**. The endpoint shows up in the list.
+Leave the other fields empty and click **Register**. The endpoint shows up in the list on the left and stays open in the form. In the **Try it** panel, click **Send** to call it from the browser and see the status, the time it took and the body.
 
 **With curl**, the same registration is:
 
@@ -127,7 +127,7 @@ The rules for a registration:
 - The path is required and must start with `/`.
 - At least one HTTP method is required. For several, tick more than one box, or send them comma-separated: `-F methods=GET,POST`.
 - The response file is required.
-- Registering a path that already exists replaces the endpoint that was there.
+- Registering a path that already exists replaces the endpoint that was there. If the registration comes without a file, the endpoint keeps the response it had and only its other settings are replaced.
 
 And what callers get when a request does not fit:
 
@@ -421,11 +421,28 @@ How it behaves:
 - A service or method that was not registered gets `404` with `{"error":"Mock not found"}`.
 - The status code and delay from the form apply to the answer.
 
-## 8. List and delete endpoints
+## 8. List, change and delete endpoints
 
-The dashboard lists every endpoint with its type, path, methods, status and whether it asks for authentication. The **Delete** button removes one.
+The dashboard lists every endpoint on the left, with its methods and its path. Click one to open it:
 
-**With curl**, list them:
+- The form shows its settings. Change the status code, the delay, the rate limit, the methods or the authentication and click **Save**. Leave the file empty to keep the response, or choose a new one to replace it.
+- The **Try it** panel calls the endpoint and shows what it answers. The path is editable, so you can fill in `{id}` segments and query parameters, and a POST or PUT request can carry a body. The same request is shown as a `curl` command.
+- **Delete** removes it.
+
+**New endpoint**, at the top, goes back to an empty form.
+
+A gRPC mock cannot be changed without a file: fill in the service and the method again and choose its response.
+
+**With curl**, change an endpoint by registering its path again. Without `-F file=...`, the response is kept:
+
+```bash
+curl -X POST http://localhost:3001/register \
+  -F path=/api/hello \
+  -F methods=GET \
+  -F status_code=503
+```
+
+List them:
 
 ```bash
 curl http://localhost:3001/list
@@ -467,7 +484,7 @@ After that, `GET /api/hello` is back to `404`.
 |---|---|---|
 | `path` | yes | Starts with `/`. May contain `{name}` segments and a query string. |
 | `methods` | yes | Comma-separated HTTP methods, for example `GET,POST` |
-| `file` | yes | The JSON response file, 5 MB at most |
+| `file` | for a new path | The JSON response file, 5 MB at most. Left out for a path that is already registered, the response is kept (not for gRPC). |
 | `status_code` | no | Defaults to 200 |
 | `delay` | no | Milliseconds |
 | `rate_limit` | no | `<requests>/<window in ms>` |
