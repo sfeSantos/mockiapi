@@ -583,7 +583,7 @@ git tag v0.1.9
 git push origin v0.1.9
 ```
 
-The workflow then checks that the tag matches `Cargo.toml`, attaches the Linux, macOS and Windows binaries to the GitHub release, and publishes the crate to crates.io. The crate goes last, because a version published there cannot be replaced.
+The workflow then checks that the tag matches `Cargo.toml`, creates a GitHub release named after the tag with notes generated from the merged pull requests, attaches the Linux, macOS and Windows binaries to it, and publishes the crate to crates.io. The crate goes last, because a version published there cannot be replaced.
 
 Publishing the crate needs a repository secret named `CARGO_REGISTRY_TOKEN`, holding a crates.io API token. The Docker image is not built by the workflow.
 
