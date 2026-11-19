@@ -4,7 +4,7 @@ use uuid::Uuid;
 use warp::http::StatusCode;
 use warp::multipart::{FormData, Part};
 use crate::models::grpc::GrpcMockResponse;
-use crate::models::{AuthData, Endpoint, MockBody, RateLimit, RegistrationError};
+use crate::models::{AuthData, Endpoint, EndpointKind, MockBody, RateLimit, RegistrationError};
 
 /// Directory the uploaded mock files are written to, relative to the working directory.
 pub const UPLOADS_DIR: &str = "uploads";
@@ -32,7 +32,8 @@ pub struct RegistrationForm {
 pub struct Registration {
     pub path: String,
     pub endpoint: Endpoint,
-    pub upload: Bytes,
+    /// The file to write to disk. `None` when the endpoint keeps the response it already had.
+    pub upload: Option<Bytes>,
     pub grpc: Option<GrpcRegistration>,
 }
 
@@ -85,12 +86,13 @@ impl RegistrationForm {
     }
 
     /// Checks every field and builds the endpoint. Nothing is written or stored here.
-    pub fn validate(self) -> Result<Registration, RegistrationError> {
+    ///
+    /// `previous` is the endpoint already registered on the same path, when there is one.
+    /// A form that comes without a file then keeps its response and replaces the rest.
+    pub fn validate(self, previous: Option<&Endpoint>) -> Result<Registration, RegistrationError> {
         let path = non_empty(self.path)
             .filter(|path| path.starts_with('/'))
             .ok_or(RegistrationError::Invalid("path is required and must start with /"))?;
-        let upload = self.file
-            .ok_or(RegistrationError::Invalid("a JSON response file is required"))?;
         let method = parse_methods(self.methods.as_deref().unwrap_or_default())?;
         let status_code = parse_status_code(self.status_code.as_deref().unwrap_or_default())?;
         let delay = self.delay.and_then(|delay| delay.trim().parse::<u64>().ok());
@@ -98,6 +100,24 @@ impl RegistrationForm {
         let authentication = parse_authentication(self.authentication.as_deref().unwrap_or_default())?;
         let with_dynamic_vars = self.with_dynamic_vars.map(|flag| flag == "true");
         let grpc_target = parse_grpc_target(non_empty(self.grpc_service), non_empty(self.grpc_rpc))?;
+        let is_graphql = self.is_graphql.as_deref() == Some("true");
+
+        let Some(upload) = self.file else {
+            let previous = previous.ok_or(RegistrationError::Invalid("a JSON response file is required"))?;
+            let kind = requested_kind(grpc_target.is_some(), is_graphql);
+            let endpoint = Endpoint {
+                body: kept_body(previous, kind)?,
+                method,
+                file: previous.file.clone(),
+                status_code: Some(status_code),
+                authentication,
+                delay,
+                rate_limit,
+                with_dynamic_vars,
+            };
+
+            return Ok(Registration { path, endpoint, upload: None, grpc: None });
+        };
 
         let (body, grpc) = match grpc_target {
             Some((service, rpc)) => {
@@ -106,7 +126,7 @@ impl RegistrationForm {
 
                 (MockBody::Grpc, Some(GrpcRegistration { service, rpc, response }))
             }
-            None if self.is_graphql.as_deref() == Some("true") => {
+            None if is_graphql => {
                 let document = serde_json::from_slice(&upload).map_err(|_| INVALID_JSON_FILE)?;
 
                 (MockBody::GraphQl(document), None)
@@ -126,8 +146,35 @@ impl RegistrationForm {
             with_dynamic_vars,
         };
 
-        Ok(Registration { path, endpoint, upload, grpc })
+        Ok(Registration { path, endpoint, upload: Some(upload), grpc })
     }
+}
+
+fn requested_kind(has_grpc_target: bool, is_graphql: bool) -> EndpointKind {
+    match (has_grpc_target, is_graphql) {
+        (true, _) => EndpointKind::Grpc,
+        (false, true) => EndpointKind::GraphQl,
+        (false, false) => EndpointKind::Rest,
+    }
+}
+
+/// The response an endpoint keeps when it is registered again without a file.
+///
+/// The stored body only fits the kind it was prepared for, and the answers of a gRPC
+/// endpoint live in the registry, so both cases need a new file.
+fn kept_body(previous: &Endpoint, kind: EndpointKind) -> Result<MockBody, RegistrationError> {
+    if kind == EndpointKind::Grpc {
+        return Err(RegistrationError::Invalid("a JSON response file is required for a gRPC mock"));
+    }
+
+    if previous.kind() != kind {
+        return Err(RegistrationError::Invalid(
+            "a JSON response file is required to change the type of an endpoint",
+        ));
+    }
+
+    // Cheap for REST: `Bytes` is shared, not copied.
+    Ok(previous.body.clone())
 }
 
 const UNREADABLE_FORM: RegistrationError = RegistrationError::Invalid("the form could not be read");
@@ -226,7 +273,6 @@ async fn part_bytes(part: Part) -> Result<Bytes, RegistrationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::EndpointKind;
 
     fn form() -> RegistrationForm {
         RegistrationForm {
@@ -238,12 +284,12 @@ mod tests {
     }
 
     fn reason(form: RegistrationForm) -> &'static str {
-        form.validate().unwrap_err().reason()
+        form.validate(None).unwrap_err().reason()
     }
 
     #[test]
     fn minimal_form_registers_an_open_rest_endpoint() {
-        let registration = form().validate().unwrap();
+        let registration = form().validate(None).unwrap();
 
         assert_eq!(registration.path, "/api/hello");
         assert_eq!(registration.endpoint.kind(), EndpointKind::Rest);
@@ -265,7 +311,7 @@ mod tests {
             grpc_rpc: Some(String::new()),
             ..form()
         }
-        .validate()
+        .validate(None)
         .unwrap();
 
         assert_eq!(registration.endpoint.kind(), EndpointKind::Rest);
@@ -277,7 +323,7 @@ mod tests {
     #[test]
     fn methods_are_trimmed_and_uppercased() {
         let registration = RegistrationForm { methods: Some("get, post,".to_string()), ..form() }
-            .validate()
+            .validate(None)
             .unwrap();
 
         assert_eq!(registration.endpoint.method, ["GET", "POST"]);
@@ -286,7 +332,7 @@ mod tests {
     #[test]
     fn rate_limit_is_read_as_requests_per_window() {
         let registration = RegistrationForm { rate_limit: Some("10/1000".to_string()), ..form() }
-            .validate()
+            .validate(None)
             .unwrap();
         let rate_limit = registration.endpoint.rate_limit.unwrap();
 
@@ -305,7 +351,7 @@ mod tests {
             file: Some(Bytes::from_static(br#"{"id":"b123"}"#)),
             ..form()
         }
-        .validate()
+        .validate(None)
         .unwrap();
         let grpc = registration.grpc.unwrap();
 
@@ -344,6 +390,69 @@ mod tests {
 
         assert!(reason(graphql).contains("valid JSON"));
         assert!(reason(grpc).contains("valid JSON"));
-        assert!(rest.validate().is_ok());
+        assert!(rest.validate(None).is_ok());
+    }
+
+    fn registered(form: RegistrationForm) -> Endpoint {
+        form.validate(None).unwrap().endpoint
+    }
+
+    #[test]
+    fn form_without_a_file_keeps_the_response_and_replaces_the_settings() {
+        let previous = registered(RegistrationForm {
+            file: Some(Bytes::from_static(br#"{"id":1}"#)),
+            delay: Some("250".to_string()),
+            ..form()
+        });
+        let update = RegistrationForm {
+            file: None,
+            methods: Some("GET,POST".to_string()),
+            status_code: Some("503".to_string()),
+            ..form()
+        };
+
+        let registration = update.validate(Some(&previous)).unwrap();
+
+        assert!(registration.upload.is_none());
+        assert_eq!(registration.endpoint.file, previous.file);
+        assert!(matches!(registration.endpoint.body, MockBody::Raw(ref body) if body.as_ref() == br#"{"id":1}"#));
+        assert_eq!(registration.endpoint.method, ["GET", "POST"]);
+        assert_eq!(registration.endpoint.status_code, Some(503));
+        assert_eq!(registration.endpoint.delay, None);
+    }
+
+    #[test]
+    fn form_with_a_file_replaces_the_response_of_a_registered_path() {
+        let previous = registered(form());
+        let update = RegistrationForm { file: Some(Bytes::from_static(b"[]")), ..form() };
+
+        let registration = update.validate(Some(&previous)).unwrap();
+
+        assert_eq!(registration.upload.as_deref(), Some(b"[]".as_slice()));
+        assert_ne!(registration.endpoint.file, previous.file);
+    }
+
+    #[test]
+    fn form_without_a_file_cannot_change_the_type_of_an_endpoint() {
+        let rest = registered(form());
+        let graphql = registered(RegistrationForm { is_graphql: Some("true".to_string()), ..form() });
+        let as_graphql = RegistrationForm { file: None, is_graphql: Some("true".to_string()), ..form() };
+        let as_rest = RegistrationForm { file: None, ..form() };
+
+        assert!(as_graphql.validate(Some(&rest)).unwrap_err().reason().contains("type"));
+        assert!(as_rest.validate(Some(&graphql)).unwrap_err().reason().contains("type"));
+    }
+
+    #[test]
+    fn grpc_mock_always_needs_a_file() {
+        let grpc_form = || RegistrationForm {
+            grpc_service: Some("Books".to_string()),
+            grpc_rpc: Some("GetBook".to_string()),
+            ..form()
+        };
+        let previous = registered(grpc_form());
+        let update = RegistrationForm { file: None, ..grpc_form() };
+
+        assert!(update.validate(Some(&previous)).unwrap_err().reason().contains("gRPC"));
     }
 }
