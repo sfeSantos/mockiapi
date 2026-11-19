@@ -71,7 +71,8 @@ h2 {
   margin-bottom: 1.5rem;
 }
 
-label {
+label,
+.group-label {
   display: block;
   font-weight: 600;
   margin-bottom: 0.5rem;
@@ -178,7 +179,6 @@ th {
   height: 30px;
   animation: spin 2s linear infinite;
   margin: 2rem auto;
-  display: none;
 }
 
 @keyframes spin {
