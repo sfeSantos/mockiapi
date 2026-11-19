@@ -30,6 +30,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          npm run check
           npm run build
       - name: Build
         run: cargo build --release

@@ -511,6 +511,8 @@ cargo test
 
 `npm run build` produces `frontend/dist`, with a gzip copy (`.gz`) next to each text file. The server sends that copy to clients that accept gzip, so it never compresses anything itself. Without `frontend/dist`, `cargo build` and `cargo test` stop with a message that says to build the frontend.
 
+The dashboard is written in TypeScript. `npm run check` inside `frontend/` type-checks it.
+
 How the server gets the dashboard depends on the build:
 
 - A release build (`cargo build --release`) compiles `frontend/dist` into the binary. Rebuild the server after changing the dashboard.
