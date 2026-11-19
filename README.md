@@ -509,7 +509,7 @@ cd ..
 cargo test
 ```
 
-`npm run build` produces `frontend/dist`. Without it, `cargo build` and `cargo test` stop with a message that says to build the frontend.
+`npm run build` produces `frontend/dist`, with a gzip copy (`.gz`) next to each text file. The server sends that copy to clients that accept gzip, so it never compresses anything itself. Without `frontend/dist`, `cargo build` and `cargo test` stop with a message that says to build the frontend.
 
 How the server gets the dashboard depends on the build:
 
