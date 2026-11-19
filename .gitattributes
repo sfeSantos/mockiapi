@@ -1,0 +1,3 @@
+# A shell script checked out with CRLF does not run: bash reads the interpreter as "/bin/bash\r".
+# This keeps LF even where core.autocrlf is true.
+*.sh text eol=lf
