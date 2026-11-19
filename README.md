@@ -8,6 +8,8 @@ mockiapi is a mock HTTP server. You tell it "when a request arrives at this path
 
 Endpoints are registered while the server is running, from a web dashboard or with `curl`. Nothing is configured in files and nothing needs a restart.
 
+For a short overview with a screenshot of the dashboard, see the [product page](https://sfesantos.github.io/mockiapi/). Its source is `docs/index.html`.
+
 The bird in the icon is a mockingbird. A mockingbird copies the songs of other birds well enough to pass for them, and mockiapi does the same for an API: it answers the way the real one would, so the code calling it cannot tell the difference.
 
 What an endpoint can do:

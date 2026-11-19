@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="mockiapi">
+  <title>mockiapi</title>
+  <rect width="64" height="64" rx="14" fill="#ffedd5"/>
+  <path d="M19 42 7 50h15z" fill="#c2410c"/>
+  <circle cx="30" cy="34" r="16" fill="#c2410c"/>
+  <path d="M44 27l11 5-11 5z" fill="#1c1917"/>
+  <circle cx="37" cy="28" r="3" fill="#ffedd5"/>
+  <path d="M20 35a10 10 0 0 0 17 5" fill="none" stroke="#ffedd5" stroke-width="3.5" stroke-linecap="round"/>
+</svg>
