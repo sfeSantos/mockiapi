@@ -54,7 +54,7 @@ chmod +x init.sh
 
 On Windows, run `init.bat`.
 
-The script builds the server, builds the dashboard into `frontend/dist`, and starts the server from the repository root with request logging on.
+The script builds the dashboard into `frontend/dist`, builds the server with the dashboard embedded in it, and starts the server with request logging on.
 
 ### With a release binary
 
@@ -67,7 +67,7 @@ chmod +x mockiapi-linux-amd64
 RUST_LOG=info ./mockiapi-linux-amd64
 ```
 
-The download is the server alone, without the dashboard. Every step of this tutorial still works, because each one also shows the `curl` command. If you want the dashboard, use Docker or a source build.
+The download is a single executable with the dashboard inside it. There is nothing else to download, and it can be started from any directory.
 
 ### Check that it is running
 
@@ -499,11 +499,22 @@ Logging is off unless the `RUST_LOG` environment variable is set. With `RUST_LOG
 
 ### Development
 
+The server embeds the dashboard, so the dashboard is built first:
+
 ```bash
+cd frontend
+npm install
+npm run build
+cd ..
 cargo test
 ```
 
-For the dashboard, run `npm install` and `npm run build` inside `frontend/`. That produces `frontend/dist`, which the server reads when it is started from the repository root.
+`npm run build` produces `frontend/dist`. Without it, `cargo build` and `cargo test` stop with a message that says to build the frontend.
+
+How the server gets the dashboard depends on the build:
+
+- A release build (`cargo build --release`) compiles `frontend/dist` into the binary. Rebuild the server after changing the dashboard.
+- A debug build (`cargo run`) reads `frontend/dist` from disk on every request, so `npm run build` is enough to see a dashboard change.
 
 ## License
 
