@@ -168,3 +168,38 @@ async fn test_registering_a_path_again_removes_the_previous_upload() {
     assert!(!Path::new(&first_file).exists());
     assert!(!Path::new(&second_file).exists());
 }
+
+#[tokio::test]
+async fn test_registering_a_path_again_without_a_file_keeps_the_upload() {
+    let endpoints = new_endpoints();
+    let filter = admin(endpoints.clone());
+
+    register(&filter, &[("path", "/api/kept"), ("methods", "GET"), ("file", "{\"ok\":true}")]).await;
+    let first_file = endpoints.get("/api/kept").unwrap().endpoint.file.clone();
+    let updated = register(
+        &filter,
+        &[("path", "/api/kept"), ("methods", "GET,POST"), ("status_code", "503")],
+    )
+    .await;
+    let route = endpoints.get("/api/kept").unwrap();
+    let kept_on_disk = std::fs::read_to_string(&first_file).ok();
+    delete(&filter, "/api/kept").await;
+
+    assert_eq!(updated, StatusCode::OK);
+    assert_eq!(route.endpoint.file, first_file);
+    assert_eq!(route.endpoint.method, ["GET", "POST"]);
+    assert_eq!(route.endpoint.status_code, Some(503));
+    assert_eq!(kept_on_disk.as_deref(), Some("{\"ok\":true}"));
+    assert!(!Path::new(&first_file).exists());
+}
+
+#[tokio::test]
+async fn test_registering_a_new_path_without_a_file_is_rejected() {
+    let endpoints = new_endpoints();
+    let filter = admin(endpoints.clone());
+
+    let status = register(&filter, &[("path", "/api/missing-file"), ("methods", "GET")]).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(endpoints.is_empty());
+}

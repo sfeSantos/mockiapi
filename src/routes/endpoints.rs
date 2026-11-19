@@ -25,20 +25,27 @@ async fn register(
     endpoints: &Endpoints,
     grpc_registry: &GrpcRegistry,
 ) -> Result<(), RegistrationError> {
-    let registration = RegistrationForm::read(form).await?.validate()?;
+    let form = RegistrationForm::read(form).await?;
+    let previous = form.path
+        .as_deref()
+        .and_then(|path| endpoints.get(path));
+    let registration = form.validate(previous.as_deref().map(|route| &route.endpoint))?;
 
-    fs::write(&registration.endpoint.file, &registration.upload)
-        .await
-        .map_err(|_| RegistrationError::Storage)?;
+    if let Some(upload) = &registration.upload {
+        fs::write(&registration.endpoint.file, upload)
+            .await
+            .map_err(|_| RegistrationError::Storage)?;
+    }
 
     if let Some(grpc) = registration.grpc {
         grpc_registry.register_mock(&grpc.service, &grpc.rpc, grpc.response);
     }
 
+    let kept_file = registration.upload.is_none();
     let replaced = endpoints.insert(registration.path, registration.endpoint);
 
-    // Registering a path again supersedes its previous upload.
-    if let Some(replaced) = replaced {
+    // Registering a path again with a new file supersedes its previous upload.
+    if let Some(replaced) = replaced.filter(|_| !kept_file) {
         remove_upload(&replaced.endpoint.file).await;
     }
 
