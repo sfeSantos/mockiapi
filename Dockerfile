@@ -9,6 +9,7 @@ RUN npm run build
 FROM rust:latest AS backend-builder
 WORKDIR /app
 COPY . .
+# The dashboard is compiled into the binary, so it has to be here before cargo runs
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 RUN cargo build --release
 # Find the binary name from the Cargo.toml file
@@ -21,10 +22,8 @@ FROM debian:bookworm-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Copy the compiled binary from the build stage
+# Copy the compiled binary from the build stage. The dashboard is embedded in it.
 COPY --from=backend-builder /app/mockiapi /app/mockiapi
-# Copy frontend static files
-COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
 # Expose the port the app runs on
 EXPOSE 3001

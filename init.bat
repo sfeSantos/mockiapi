@@ -1,12 +1,7 @@
 @echo off
 set RUST_LOG=info
 
-echo 🚀 Building Rust backend...
-cargo build --release || (
-    echo ❌ Rust build failed!
-    exit /b 1
-)
-
+rem The frontend goes first: the Rust build embeds frontend\dist in the binary.
 echo 🚀 Building Svelte frontend...
 cd frontend || (
     echo ❌ Frontend directory not found!
@@ -17,6 +12,12 @@ npm install && npm run build || (
     exit /b 1
 )
 cd ..
+
+echo 🚀 Building Rust backend...
+cargo build --release || (
+    echo ❌ Rust build failed!
+    exit /b 1
+)
 
 echo 🚀 Running the application...
 target\release\mockiapi
