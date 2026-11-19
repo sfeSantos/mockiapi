@@ -1,10 +1,10 @@
 import { HTTP_METHODS } from './types';
-import type { AuthType, EndpointKind, HttpMethod } from './types';
+import type { AuthData, AuthType, Endpoint, EndpointKind, HttpMethod } from './types';
 
-const GRAPHQL_PATH = '/api/graphql';
-const GRPC_PATH = '/grpc';
+export const GRAPHQL_PATH = '/api/graphql';
+export const GRPC_PATH = '/grpc';
 
-/** What the registration form holds while it is being filled in. */
+/** What the editor holds while an endpoint is being filled in. */
 export interface RegistrationDraft {
     path: string;
     methods: Record<HttpMethod, boolean>;
@@ -43,14 +43,67 @@ export function emptyDraft(): RegistrationDraft {
     };
 }
 
+/** The draft that shows a registered endpoint as it is, ready to be changed. */
+export function draftOf(endpoint: Endpoint): RegistrationDraft {
+    const allowed = endpoint.method.map((method) => method.toUpperCase());
+    const rateLimit = endpoint.rate_limit;
+
+    return {
+        ...emptyDraft(),
+        ...credentialsOf(endpoint.authentication),
+        path: endpoint.path,
+        methods: {
+            GET: allowed.includes('GET'),
+            POST: allowed.includes('POST'),
+            PUT: allowed.includes('PUT'),
+            DELETE: allowed.includes('DELETE'),
+        },
+        statusCode: endpoint.status_code,
+        delay: endpoint.delay,
+        rateLimit: rateLimit ? `${rateLimit.requests}/${rateLimit.window_ms}` : '',
+        dynamicVars: endpoint.with_dynamic_vars === true,
+    };
+}
+
+function credentialsOf(
+    authentication: AuthData | undefined,
+): Pick<RegistrationDraft, 'authType' | 'username' | 'password' | 'tokenData'> {
+    if (authentication?.tokenData) {
+        const tokenData = JSON.stringify({ tokenData: authentication.tokenData });
+
+        return { authType: 'token', username: '', password: '', tokenData };
+    }
+
+    if (authentication) {
+        return {
+            authType: 'basic',
+            username: authentication.username ?? '',
+            password: authentication.password ?? '',
+            tokenData: '',
+        };
+    }
+
+    return { authType: 'none', username: '', password: '', tokenData: '' };
+}
+
+/**
+ * Whether the server accepts this registration without a file.
+ *
+ * It does when a REST or GraphQL endpoint is being changed: the response it already has is
+ * kept. A new endpoint needs one, and so does every gRPC mock.
+ */
+export function canKeepResponse(kind: EndpointKind, editing: boolean): boolean {
+    return editing && kind !== 'gRPC';
+}
+
 /**
  * Builds the multipart form `POST /register` expects.
  *
  * GraphQL and gRPC endpoints live on a fixed path and only answer POST, so the path and
  * the methods of the draft only count for REST. Optional fields left empty are not sent.
  */
-export function toFormData(kind: EndpointKind, draft: RegistrationDraft): FormData {
-    if (draft.file === null) {
+export function toFormData(kind: EndpointKind, draft: RegistrationDraft, editing: boolean): FormData {
+    if (draft.file === null && !canKeepResponse(kind, editing)) {
         throw new InvalidDraft('Please select a JSON file');
     }
 
@@ -70,7 +123,9 @@ export function toFormData(kind: EndpointKind, draft: RegistrationDraft): FormDa
         form.append('grpcRPC', draft.grpcRpc.trim());
     }
 
-    form.append('file', draft.file);
+    if (draft.file !== null) {
+        form.append('file', draft.file);
+    }
 
     return form;
 }
