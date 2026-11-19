@@ -4,6 +4,9 @@ import type { AuthData, AuthType, Endpoint, EndpointKind, HttpMethod } from './t
 export const GRAPHQL_PATH = '/api/graphql';
 export const GRPC_PATH = '/grpc';
 
+/** Where the response comes from: a file on the user's machine, or text typed into the page. */
+export type ResponseSource = 'file' | 'text';
+
 /** What the editor holds while an endpoint is being filled in. */
 export interface RegistrationDraft {
     path: string;
@@ -19,7 +22,9 @@ export interface RegistrationDraft {
     tokenData: string;
     grpcService: string;
     grpcRpc: string;
+    responseSource: ResponseSource;
     file: File | null;
+    responseText: string;
 }
 
 /** A draft the user has to fix before it can be sent. */
@@ -39,7 +44,9 @@ export function emptyDraft(): RegistrationDraft {
         tokenData: '',
         grpcService: '',
         grpcRpc: '',
+        responseSource: 'file',
         file: null,
+        responseText: '',
     };
 }
 
@@ -101,10 +108,20 @@ export function canKeepResponse(kind: EndpointKind, editing: boolean): boolean {
  *
  * GraphQL and gRPC endpoints live on a fixed path and only answer POST, so the path and
  * the methods of the draft only count for REST. Optional fields left empty are not sent.
+ *
+ * `storedText` is the response the endpoint holds on the server, when it was loaded.
+ * Text that still equals it is not sent again.
  */
-export function toFormData(kind: EndpointKind, draft: RegistrationDraft, editing: boolean): FormData {
-    if (draft.file === null && !canKeepResponse(kind, editing)) {
-        throw new InvalidDraft('Please select a JSON file');
+export function toFormData(
+    kind: EndpointKind,
+    draft: RegistrationDraft,
+    editing: boolean,
+    storedText: string | null = null,
+): FormData {
+    const response = responseOf(kind, draft, storedText);
+
+    if (response === null && !canKeepResponse(kind, editing)) {
+        throw new InvalidDraft(MISSING_RESPONSE[draft.responseSource]);
     }
 
     const form = new FormData();
@@ -123,11 +140,55 @@ export function toFormData(kind: EndpointKind, draft: RegistrationDraft, editing
         form.append('grpcRPC', draft.grpcRpc.trim());
     }
 
-    if (draft.file !== null) {
-        form.append('file', draft.file);
+    if (response !== null) {
+        form.append('file', response);
     }
 
     return form;
+}
+
+const MISSING_RESPONSE: Record<ResponseSource, string> = {
+    file: 'Please select a JSON file',
+    text: 'Please type or paste the response',
+};
+
+/** The response to upload, or `null` when the draft brings nothing new. */
+function responseOf(kind: EndpointKind, draft: RegistrationDraft, storedText: string | null): File | null {
+    if (draft.responseSource === 'file') {
+        return draft.file;
+    }
+
+    const text = draft.responseText;
+
+    if (text.trim() === '' || text === storedText) {
+        return null;
+    }
+
+    // A REST response may be a template that only becomes JSON once its placeholders are filled.
+    if (kind !== 'REST' && !isJson(text)) {
+        throw new InvalidDraft('The response must be valid JSON');
+    }
+
+    return new File([text], 'response.json', { type: 'application/json' });
+}
+
+function isJson(text: string): boolean {
+    try {
+        JSON.parse(text);
+
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** Indents JSON text. A template with bare placeholders is not JSON and cannot be formatted. */
+export function formatJson(text: string): string {
+    try {
+        return JSON.stringify(JSON.parse(text), null, 2);
+    } catch {
+        throw new InvalidDraft('The response is not valid JSON, so it cannot be formatted');
+    }
 }
 
 function pathOf(kind: EndpointKind, draft: RegistrationDraft): string {

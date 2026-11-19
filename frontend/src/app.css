@@ -565,3 +565,60 @@ pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Response source */
+
+.response-heading,
+.response-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  background-color: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border-strong);
+}
+
+.segmented button.active {
+  background-color: var(--ink);
+  color: var(--surface);
+}
+
+textarea {
+  resize: vertical;
+}
+
+.btn-secondary {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  border-color: var(--ink-soft);
+}
