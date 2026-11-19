@@ -571,6 +571,22 @@ How the server gets the dashboard depends on the build:
 - A release build (`cargo build --release`) compiles `frontend/dist` into the binary. Rebuild the server after changing the dashboard.
 - A debug build (`cargo run`) reads `frontend/dist` from disk on every request, so `npm run build` is enough to see a dashboard change.
 
+### Releasing
+
+A push to `main` builds and tests, and publishes nothing. A release is made by a version tag:
+
+1. Set the new `version` in `Cargo.toml`, run `cargo build` so `Cargo.lock` follows, and merge that to `main`.
+2. Tag that commit with the same number and push the tag:
+
+```bash
+git tag v0.1.9
+git push origin v0.1.9
+```
+
+The workflow then checks that the tag matches `Cargo.toml`, attaches the Linux, macOS and Windows binaries to the GitHub release, and publishes the crate to crates.io. The crate goes last, because a version published there cannot be replaced.
+
+Publishing the crate needs a repository secret named `CARGO_REGISTRY_TOKEN`, holding a crates.io API token. The Docker image is not built by the workflow.
+
 ## License
 
 Licensed under either of [MIT](LICENSE) or [Apache 2.0](LICENSE-APACHE), at your option.
