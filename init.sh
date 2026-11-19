@@ -19,4 +19,4 @@ echo "🚀 Building the Rust backend..."
 cargo build --release || { echo "❌ Rust build failed!"; exit 1; }
 
 echo "✅ Starting the server..."
-./target/release/mockiapi
+./target/release/mockiapi "$@"

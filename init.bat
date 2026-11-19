@@ -20,4 +20,4 @@ cargo build --release || (
 )
 
 echo 🚀 Running the application...
-target\release\mockiapi
+target\release\mockiapi %*
