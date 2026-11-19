@@ -32,7 +32,7 @@ Two things to know before you start:
 
 ## 1. Start the server
 
-Pick one of the three ways below. In all of them the server listens on port 3001.
+Pick one of the three ways below. In all of them the server listens on port 3001, unless you [choose another port](#on-another-port).
 
 ### With Docker
 
@@ -68,6 +68,23 @@ RUST_LOG=info ./mockiapi-linux-amd64
 ```
 
 The download is a single executable with the dashboard inside it. There is nothing else to download, and it can be started from any directory.
+
+### On another port
+
+Pass `--port`, or set the `PORT` environment variable. The argument wins when both are given.
+
+```bash
+./mockiapi-linux-amd64 --port 8080
+PORT=8080 ./mockiapi-linux-amd64
+```
+
+The init scripts hand their arguments to the server, so `./init.sh --port 8080` works too. With Docker, set the variable and publish the same port:
+
+```bash
+docker run -e PORT=8080 -p 8080:8080 edufsantos/mockiapi
+```
+
+If the port is already in use, the server says so and stops. The rest of this tutorial uses 3001.
 
 ### Check that it is running
 

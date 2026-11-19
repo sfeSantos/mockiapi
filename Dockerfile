@@ -28,7 +28,7 @@ COPY --from=backend-builder /app/mockiapi /app/mockiapi
 # Expose the port the app runs on
 EXPOSE 3001
 
-# Set the environment variable for the port
+# The server reads the port from here. Override it with -e PORT=... and publish the same port.
 ENV PORT=3001
 
 # Command to run the application
