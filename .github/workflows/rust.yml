@@ -21,6 +21,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # The dashboard is embedded in the binary, so it has to exist before cargo runs.
+      - name: Build the dashboard
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
       - name: Build
         run: cargo build --release
       - name: Test
@@ -46,18 +56,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Build Rust backend
-        run: cargo build --release
       - name: Set up Node.js
-        
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install frontend dependencies
+      # The dashboard is embedded in the binary, so it has to exist before cargo runs.
+      - name: Build the dashboard
         working-directory: frontend
-        run: npm install
-
+        run: |
+          npm ci
+          npm run build
+      - name: Build Rust backend
+        run: cargo build --release
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
