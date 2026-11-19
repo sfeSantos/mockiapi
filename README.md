@@ -99,6 +99,8 @@ Create a file named `hello.json`:
 
 Leave the other fields empty and click **Register**. The endpoint shows up in the list on the left and stays open in the form. In the **Try it** panel, click **Send** to call it from the browser and see the status, the time it took and the body.
 
+There is no need for a file if you would rather type: next to **Response**, switch from **File** to **Text** and paste the JSON into the box.
+
 **With curl**, the same registration is:
 
 ```bash
@@ -425,7 +427,8 @@ How it behaves:
 
 The dashboard lists every endpoint on the left, with its methods and its path. Click one to open it:
 
-- The form shows its settings. Change the status code, the delay, the rate limit, the methods or the authentication and click **Save**. Leave the file empty to keep the response, or choose a new one to replace it.
+- The form shows its settings. Change the status code, the delay, the rate limit, the methods or the authentication and click **Save**.
+- The **Response** box shows what the endpoint answers now. Edit the text and click **Save**, and the next call gets the new response. **Format** indents it when it is valid JSON. To replace it with a file, switch to **File**.
 - The **Try it** panel calls the endpoint and shows what it answers. The path is editable, so you can fill in `{id}` segments and query parameters, and a POST or PUT request can carry a body. The same request is shown as a `curl` command.
 - **Delete** removes it.
 
@@ -462,7 +465,17 @@ curl http://localhost:3001/list
 }
 ```
 
-Delete one by its registered path, URL-encoded (`/` becomes `%2F`):
+Read the response an endpoint holds, by its registered path, URL-encoded (`/` becomes `%2F`):
+
+```bash
+curl http://localhost:3001/content/%2Fapi%2Fhello
+```
+
+```json
+{ "message": "Hello, world!" }
+```
+
+Delete one the same way:
 
 ```bash
 curl -X DELETE http://localhost:3001/delete/%2Fapi%2Fhello
@@ -497,7 +510,7 @@ A form the server refuses gets `400` with the reason as a JSON string, for examp
 
 ### Reserved paths
 
-`POST /register`, `GET /list` and `DELETE /delete/...` belong to the server, and so do the dashboard's own files (`/`, `/assets/...`). They are matched before the mocks, so a mock registered on one of them is never reached.
+`POST /register`, `GET /list`, `GET /content/...` and `DELETE /delete/...` belong to the server, and so do the dashboard's own files (`/`, `/assets/...`). They are matched before the mocks, so a mock registered on one of them is never reached.
 
 ### Answers the server gives on its own
 
