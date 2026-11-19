@@ -8,7 +8,10 @@ use crate::routes::dynamic_response::serve_dynamic_response;
 use crate::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint};
 
 pub mod endpoints;
+pub mod dashboard;
 pub mod dynamic_response;
+
+pub use dashboard::dashboard_routes;
 
 const MAX_UPLOAD_BYTES: u64 = 5_000_000;
 

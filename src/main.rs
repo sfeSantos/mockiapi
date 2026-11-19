@@ -4,7 +4,7 @@ use warp::Filter;
 use mockiapi::handlers::multipart::UPLOADS_DIR;
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::Endpoints;
-use mockiapi::routes::{admin_routes, mock_routes};
+use mockiapi::routes::{admin_routes, dashboard_routes, mock_routes};
 
 #[tokio::main]
 async fn main() {
@@ -29,7 +29,7 @@ async fn main() {
             info.request_headers()
         );
     });
-    let static_files = warp::fs::dir("frontend/dist")
+    let static_files = dashboard_routes()
         .with(warp::log("static_files"));
 
     let routes = admin_routes(endpoints.clone(), Arc::clone(&registry))
