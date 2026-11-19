@@ -6,7 +6,7 @@ use warp::{reply, Reply};
 use crate::handlers::multipart::RegistrationForm;
 use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::{EndpointKind, Endpoints, RegistrationError};
-use crate::utils::json_response;
+use crate::utils::{json_response, text_response};
 
 pub async fn register_endpoint(
     form: FormData,
@@ -54,6 +54,24 @@ async fn register(
 
 pub async fn list_endpoint(endpoints: Endpoints) -> impl Reply {
     json_response(StatusCode::OK, endpoints.to_json())
+}
+
+/// Answers the response an endpoint was registered with, as the text that was uploaded.
+///
+/// It is read from the upload, not from memory: a GraphQL document is kept parsed, which
+/// loses the formatting the dashboard shows back to the user.
+pub async fn endpoint_content(path: String, endpoints: Endpoints) -> impl Reply {
+    let route = urlencoding::decode(&path)
+        .ok()
+        .and_then(|decoded_path| endpoints.get(&decoded_path));
+    let Some(route) = route else {
+        return text_response(StatusCode::NOT_FOUND, "Resource not found");
+    };
+
+    match fs::read(&route.endpoint.file).await {
+        Ok(content) => text_response(StatusCode::OK, content),
+        Err(_) => text_response(StatusCode::INTERNAL_SERVER_ERROR, "the response file could not be read"),
+    }
 }
 
 pub async fn delete_endpoint(

@@ -203,3 +203,56 @@ async fn test_registering_a_new_path_without_a_file_is_rejected() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(endpoints.is_empty());
 }
+
+async fn content(
+    filter: &(impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone + 'static),
+    path: &str,
+) -> (StatusCode, String) {
+    let response = request()
+        .path(&format!("/content/{}", urlencoding::encode(path)))
+        .reply(filter)
+        .await;
+
+    (response.status(), String::from_utf8_lossy(response.body()).into_owned())
+}
+
+#[tokio::test]
+async fn test_content_answers_the_response_as_it_was_uploaded() {
+    let filter = admin(new_endpoints());
+    let template = "{\n  \"id\": {{id}}\n}";
+
+    register(
+        &filter,
+        &[("path", "/usr/{id}"), ("methods", "GET"), ("with_dynamic_vars", "true"), ("file", template)],
+    )
+    .await;
+    let (status, body) = content(&filter, "/usr/{id}").await;
+    delete(&filter, "/usr/{id}").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, template);
+}
+
+#[tokio::test]
+async fn test_content_follows_a_new_upload_and_survives_an_update_without_one() {
+    let filter = admin(new_endpoints());
+
+    register(&filter, &[("path", "/api/content"), ("methods", "GET"), ("file", "{\"version\":1}")]).await;
+    register(&filter, &[("path", "/api/content"), ("methods", "GET"), ("file", "{\"version\":2}")]).await;
+    let (_, replaced) = content(&filter, "/api/content").await;
+    register(&filter, &[("path", "/api/content"), ("methods", "GET"), ("status_code", "503")]).await;
+    let (_, kept) = content(&filter, "/api/content").await;
+    delete(&filter, "/api/content").await;
+
+    assert_eq!(replaced, "{\"version\":2}");
+    assert_eq!(kept, "{\"version\":2}");
+}
+
+#[tokio::test]
+async fn test_content_of_an_unknown_path_is_not_found() {
+    let filter = admin(new_endpoints());
+
+    let (status, _) = content(&filter, "/api/nobody").await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

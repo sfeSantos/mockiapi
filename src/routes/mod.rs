@@ -5,7 +5,7 @@ use warp::{Filter, Rejection, Reply};
 use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::Endpoints;
 use crate::routes::dynamic_response::serve_dynamic_response;
-use crate::routes::endpoints::{delete_endpoint, list_endpoint, register_endpoint};
+use crate::routes::endpoints::{delete_endpoint, endpoint_content, list_endpoint, register_endpoint};
 
 pub mod endpoints;
 pub mod dashboard;
@@ -15,7 +15,7 @@ pub use dashboard::dashboard_routes;
 
 const MAX_UPLOAD_BYTES: u64 = 5_000_000;
 
-/// Routes the dashboard uses to register, list and delete mock endpoints.
+/// Routes the dashboard uses to register, list, read and delete mock endpoints.
 pub fn admin_routes(
     endpoints: Endpoints,
     grpc_registry: Arc<GrpcRegistry>,
@@ -30,13 +30,17 @@ pub fn admin_routes(
         .and(warp::path!("list"))
         .and(with(endpoints.clone()))
         .then(list_endpoint);
+    let content = warp::get()
+        .and(warp::path!("content" / String))
+        .and(with(endpoints.clone()))
+        .then(endpoint_content);
     let delete = warp::delete()
         .and(warp::path!("delete" / String))
         .and(with(endpoints))
         .and(with(grpc_registry))
         .then(delete_endpoint);
 
-    register.or(list).or(delete)
+    register.or(list).or(content).or(delete)
 }
 
 /// Catch-all filter that answers every registered mock endpoint.
