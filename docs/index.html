@@ -1,0 +1,939 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mockiapi: a mock API server you set up while it runs</title>
+<meta name="description" content="mockiapi is a mock HTTP server in a single binary. Register REST, GraphQL and simulated gRPC endpoints from a web dashboard or with curl, with no config files and no restart.">
+<meta property="og:title" content="mockiapi">
+<meta property="og:description" content="A mock API server you set up while it runs. REST, GraphQL and simulated gRPC, from a dashboard or with curl.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://sfesantos.github.io/mockiapi/dashboard.png">
+<link rel="icon" type="image/svg+xml" href="mockiapi.svg">
+<style>
+:root {
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-soft: #ffedd5;
+  --ink: #1c1917;
+  --ink-soft: #44403c;
+  --muted: #57534e;
+  --surface: #ffffff;
+  --background: #fafaf9;
+  --panel: #f5f5f4;
+  --border: #e7e5e4;
+  --border-strong: #d6d3d1;
+  --code-background: #1c1917;
+  --code-ink: #e7e5e4;
+  --code-muted: #a8a29e;
+  --code-accent: #fdba74;
+  --get: #075985;
+  --post: #166534;
+  --radius: 6px;
+  --font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #fb923c;
+    --accent-hover: #fdba74;
+    --accent-soft: #431407;
+    --ink: #f5f5f4;
+    --ink-soft: #d6d3d1;
+    --muted: #a8a29e;
+    --surface: #1c1917;
+    --background: #0c0a09;
+    --panel: #1c1917;
+    --border: #292524;
+    --border-strong: #44403c;
+    --code-background: #171412;
+    --get: #7dd3fc;
+    --post: #86efac;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: 16px;
+  line-height: 1.6;
+  background: var(--background);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+a {
+  color: var(--accent);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+p code,
+li code,
+td code {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+pre {
+  background: var(--code-background);
+  color: var(--code-ink);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  overflow-x: auto;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+pre .comment {
+  color: var(--code-muted);
+}
+
+pre .output {
+  color: var(--code-accent);
+}
+
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Top bar */
+
+.top-bar {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.top-bar .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 60px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.top-bar nav {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.top-bar nav a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.top-bar nav a:hover {
+  color: var(--accent);
+}
+
+/* Hero */
+
+.hero {
+  padding: 72px 0 40px;
+}
+
+.hero h1 {
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  max-width: 18ch;
+}
+
+.hero .lead {
+  margin-top: 20px;
+  max-width: 62ch;
+  font-size: 19px;
+  color: var(--ink-soft);
+}
+
+.actions {
+  margin-top: 28px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.button {
+  display: inline-block;
+  padding: 11px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.button.primary {
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #ffffff;
+}
+
+.button.primary:hover {
+  background: #9a3412;
+  border-color: #9a3412;
+  color: #ffffff;
+}
+
+.quick-start {
+  margin-top: 28px;
+  max-width: 560px;
+}
+
+.shot {
+  margin-top: 48px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(28, 25, 23, 0.14);
+}
+
+.shot figcaption {
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+/* Sections */
+
+section {
+  padding: 64px 0;
+  border-top: 1px solid var(--border);
+}
+
+.hero + section {
+  border-top: 0;
+}
+
+.eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+h2 {
+  margin-top: 6px;
+  font-size: clamp(26px, 3.4vw, 34px);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.section-lead {
+  margin-top: 12px;
+  max-width: 68ch;
+  color: var(--ink-soft);
+}
+
+h3 {
+  font-size: 19px;
+  line-height: 1.3;
+}
+
+/* Steps */
+
+.steps {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps li {
+  counter-increment: step;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  min-width: 0;
+}
+
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.steps p {
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.steps pre {
+  margin-top: 14px;
+}
+
+/* Features */
+
+.feature {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.feature > * {
+  min-width: 0;
+}
+
+.feature p {
+  margin-top: 10px;
+  color: var(--ink-soft);
+}
+
+.feature ul {
+  margin: 12px 0 0 20px;
+  color: var(--ink-soft);
+}
+
+.feature li + li {
+  margin-top: 4px;
+}
+
+.feature pre + pre {
+  margin-top: 10px;
+}
+
+.cards {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  min-width: 0;
+}
+
+.card p {
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--post);
+}
+
+.tag.get {
+  color: var(--get);
+}
+
+/* Tables */
+
+.table-scroll {
+  margin-top: 24px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+th {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+/* Install */
+
+.install {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.install .card pre {
+  margin-top: 14px;
+}
+
+.downloads {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.downloads .button {
+  padding: 7px 14px;
+  font-size: 14px;
+}
+
+.about {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.about img {
+  flex: none;
+}
+
+.about p {
+  margin-top: 10px;
+  max-width: 62ch;
+  color: var(--ink-soft);
+}
+
+/* Limits */
+
+.limits {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 32px;
+  list-style: none;
+}
+
+.limits li {
+  padding-left: 18px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--ink-soft);
+}
+
+.limits strong {
+  color: var(--ink);
+}
+
+/* Footer */
+
+footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 0 48px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+footer .wrap {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+footer nav {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .steps,
+  .cards,
+  .install,
+  .limits,
+  .feature {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feature {
+    gap: 18px;
+  }
+
+  .about {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .hero {
+    padding-top: 48px;
+  }
+
+  section {
+    padding: 48px 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .wrap {
+    padding: 0 16px;
+  }
+
+  .top-bar nav {
+    gap: 14px;
+  }
+}
+</style>
+</head>
+<body>
+
+<header class="top-bar">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img src="mockiapi.svg" width="32" height="32" alt="">
+      mockiapi
+    </a>
+    <nav aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#protocols">GraphQL and gRPC</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/sfeSantos/mockiapi">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<div class="hero">
+  <div class="wrap">
+    <h1>A mock API server you set up while it runs</h1>
+    <p class="lead">mockiapi answers HTTP requests with the JSON you give it. Register an endpoint from the web dashboard or with <code>curl</code>, and your frontend, mobile app or integration test can call it right away. No config files, no restart, one binary.</p>
+
+    <div class="actions">
+      <a class="button primary" href="#install">Install</a>
+      <a class="button" href="https://github.com/sfeSantos/mockiapi#readme">Read the tutorial</a>
+    </div>
+
+    <pre class="quick-start"><span class="comment"># start it, then open http://localhost:3001</span>
+docker run -p 3001:3001 edufsantos/mockiapi</pre>
+
+    <figure class="shot">
+      <img src="dashboard.png" width="2720" height="1640" alt="The mockiapi dashboard. On the left, a list of seven registered endpoints. In the middle, the form for /api/users/{id} with its JSON response open as text. On the right, the Try it panel showing a 200 OK answer for /api/users/42.">
+      <figcaption>The dashboard: the registered endpoints, the one being edited, and a real call to it.</figcaption>
+    </figure>
+  </div>
+</div>
+
+<section id="how">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2>From nothing to a working endpoint in three commands</h2>
+
+    <ol class="steps">
+      <li>
+        <h3>Write the answer</h3>
+        <p>Any JSON file is a response.</p>
+<pre>echo '{ "message": "Hello, world!" }' \
+  > hello.json</pre>
+      </li>
+      <li>
+        <h3>Register the endpoint</h3>
+        <p>A path, the methods and the file.</p>
+<pre>curl -X POST localhost:3001/register \
+  -F path=/api/hello \
+  -F methods=GET \
+  -F file=@hello.json</pre>
+      </li>
+      <li>
+        <h3>Call it</h3>
+        <p>It answers at once, until you delete it.</p>
+<pre>curl localhost:3001/api/hello
+<span class="output">{ "message": "Hello, world!" }</span></pre>
+      </li>
+    </ol>
+
+    <p class="section-lead">The same three steps can be done in the dashboard, where the response can also be typed or pasted as text instead of uploaded.</p>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">Features</p>
+    <h2>What an endpoint can do</h2>
+    <p class="section-lead">Every option below is a field in the dashboard form and a field of <code>POST /register</code>. They can be combined on the same endpoint.</p>
+
+    <div class="feature">
+      <div>
+        <h3>Path parameters and dynamic values</h3>
+        <p>A <code>{name}</code> segment in the path matches any value. With dynamic variables on, <code>{{name}}</code> placeholders in the response are filled from the request.</p>
+        <ul>
+          <li>segments of the path</li>
+          <li>query parameters</li>
+          <li>top-level fields of a JSON request body</li>
+          <li><code>{{timestamp}}</code>, the current UTC time</li>
+        </ul>
+        <p>A fixed query value in the registered path, such as <code>/search?kind=book</code>, has to be present for the endpoint to match.</p>
+      </div>
+      <div>
+<pre><span class="comment"># user.json</span>
+{
+  "message": "Hello, {{name}}!",
+  "user_id": "{{id}}",
+  "timestamp": "{{timestamp}}"
+}</pre>
+<pre>curl -X POST localhost:3001/register \
+  -F 'path=/api/user/{id}?name={name}' \
+  -F methods=GET \
+  -F with_dynamic_vars=true \
+  -F file=@user.json
+
+curl "localhost:3001/api/user/123?name=John"
+<span class="output">{
+  "message": "Hello, John!",
+  "user_id": "123",
+  "timestamp": "2026-11-18T22:34:07.857749903+00:00"
+}</span></pre>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div>
+        <h3>Errors, slow answers and rate limits</h3>
+        <p>Test what your client does when the API misbehaves.</p>
+        <ul>
+          <li><strong>Status code:</strong> any status, for example <code>503</code>.</li>
+          <li><strong>Delay:</strong> the server waits that many milliseconds before answering.</li>
+          <li><strong>Rate limit:</strong> written as requests per window, <code>2/10000</code>. Requests over the budget get <code>429</code>. It is counted per endpoint and per HTTP method.</li>
+        </ul>
+      </div>
+      <div>
+<pre>curl -X POST localhost:3001/register \
+  -F path=/api/slow \
+  -F methods=GET \
+  -F status_code=503 \
+  -F delay=500 \
+  -F rate_limit=2/10000 \
+  -F file=@hello.json
+
+<span class="comment"># three calls in a row: status and time</span>
+<span class="output">503 0.501404s
+503 0.502501s
+429 0.000696s</span></pre>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div>
+        <h3>Authentication</h3>
+        <p>An endpoint can require Basic auth or a bearer token. A request without the right <code>Authorization</code> header gets <code>401 Unauthorized</code>.</p>
+        <p>The credentials are test data. The server keeps them as plain text and shows them in <code>/list</code>, so don't use real ones.</p>
+      </div>
+      <div>
+<pre><span class="comment"># Basic auth</span>
+-F 'authentication={"username":"admin","password":"secret"}'
+
+curl -u admin:secret localhost:3001/api/private
+
+<span class="comment"># Bearer token</span>
+-F 'authentication={"tokenData":"my-secret-token"}'
+
+curl -H "Authorization: Bearer my-secret-token" \
+  localhost:3001/api/token</pre>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <h3>HTTP methods</h3>
+        <p>Choose which methods an endpoint accepts. Any other method on that path gets <code>405 Method not allowed</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Edit in place</h3>
+        <p>Change the response or the settings of a registered endpoint and the next call gets the new answer. No need to send the file again.</p>
+      </div>
+      <div class="card">
+        <h3>Request logs</h3>
+        <p>With <code>RUST_LOG=info</code> the server writes one line per request: client address, method, path, status, time taken and headers.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="protocols">
+  <div class="wrap">
+    <p class="eyebrow">Beyond REST</p>
+    <h2>GraphQL and gRPC mocks</h2>
+
+    <div class="feature">
+      <div>
+        <h3>GraphQL queries and mutations</h3>
+        <p>One file describes every operation the endpoint answers, in a <code>query</code> and a <code>mutation</code> section. The operation name picks the mock, and the answer carries only the fields the request selected, nested ones included.</p>
+        <p>The endpoint is always <code>POST /api/graphql</code>. Operations must be named. Arguments and variables are accepted and ignored.</p>
+      </div>
+      <div>
+<pre><span class="comment"># graphql.json</span>
+{
+  "query": {
+    "getUser": {
+      "data": { "id": "123", "name": "John Doe",
+                "email": "john@example.com", "age": 30 }
+    }
+  },
+  "mutation": {
+    "createUser": {
+      "data": { "success": true,
+                "user": { "id": "789", "name": "New User" } }
+    }
+  }
+}</pre>
+<pre>curl -X POST localhost:3001/api/graphql \
+  -d '{ "query": "query getUser { id name email }" }'
+<span class="output">{"data":{"email":"john@example.com","id":"123","name":"John Doe"}}</span></pre>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div>
+        <h3>Simulated gRPC calls</h3>
+        <p>mockiapi does not speak the gRPC wire protocol. It simulates a call as plain HTTP: the client posts JSON naming the service and the method to <code>POST /grpc</code>, and gets back the JSON registered for that pair.</p>
+        <p>Register as many service and method pairs as you need. The status code and the delay apply here too.</p>
+      </div>
+      <div>
+<pre>curl -X POST localhost:3001/register \
+  -F path=/grpc \
+  -F methods=POST \
+  -F grpcService=com.example.BookService \
+  -F grpcRPC=GetBook \
+  -F file=@book.json
+
+curl -X POST localhost:3001/grpc \
+  -d '{ "service": "com.example.BookService",
+        "rpc": "GetBook", "request": { "id": "b123" } }'
+<span class="output">{"author":"Steve Klabnik","id":"b123","title":"The Rust Programming Language"}</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="dashboard">
+  <div class="wrap">
+    <p class="eyebrow">Dashboard</p>
+    <h2>A workbench in the browser, inside the binary</h2>
+    <p class="section-lead">The dashboard is served by the same process on the same port. It is compiled into the executable, so there is nothing else to install or host.</p>
+
+    <div class="cards">
+      <div class="card">
+        <h3>Endpoint list</h3>
+        <p>Every registered endpoint with its methods and its path, and a label for GraphQL and gRPC ones. Click one to open it.</p>
+      </div>
+      <div class="card">
+        <h3>Editor</h3>
+        <p>Tabs for REST, GraphQL and gRPC. Give the response as a file or as text, and use <strong>Format</strong> to indent the JSON. <strong>Save</strong> applies a change, <strong>Delete</strong> removes the endpoint.</p>
+      </div>
+      <div class="card">
+        <h3>Try it</h3>
+        <p>Sends a real request to the endpoint and shows the status, the time and the body. The path and the body are editable, and the same request is shown as a <code>curl</code> command.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="api">
+  <div class="wrap">
+    <p class="eyebrow">Admin API</p>
+    <h2>Everything the dashboard does, over HTTP</h2>
+    <p class="section-lead">The dashboard is a client of four routes. Scripts and test suites can call them directly to set up the mocks they need and remove them afterwards.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Route</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>POST /register</code></td>
+            <td>Registers an endpoint from a multipart form. Sent again for a path that exists, it replaces the endpoint. Without a file, the response is kept and only the settings change.</td>
+          </tr>
+          <tr>
+            <td><code>GET /list</code></td>
+            <td>Every registered endpoint with its settings, as JSON.</td>
+          </tr>
+          <tr>
+            <td><code>GET /content/&lt;path&gt;</code></td>
+            <td>The response an endpoint holds. The path is URL-encoded, so <code>/api/hello</code> is <code>%2Fapi%2Fhello</code>.</td>
+          </tr>
+          <tr>
+            <td><code>DELETE /delete/&lt;path&gt;</code></td>
+            <td>Removes an endpoint.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="section-lead">The fields of <code>/register</code> and the answers the server gives on its own are listed in the <a href="https://github.com/sfeSantos/mockiapi#reference">reference</a>.</p>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <p class="eyebrow">Install</p>
+    <h2>Four ways to run it</h2>
+    <p class="section-lead">All of them listen on port 3001. Pass <code>--port 8080</code> or set <code>PORT=8080</code> to use another one.</p>
+
+    <div class="install">
+      <div class="card">
+        <h3>Release binary</h3>
+        <p>A single executable for Linux, macOS or Windows (amd64), with the dashboard inside. It can be started from any directory.</p>
+        <div class="downloads">
+          <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-amd64">Linux</a>
+          <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64">macOS</a>
+          <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64">Windows</a>
+        </div>
+<pre>chmod +x mockiapi-linux-amd64
+./mockiapi-linux-amd64</pre>
+        <p>On Windows, add the <code>.exe</code> extension after downloading.</p>
+      </div>
+
+      <div class="card">
+        <h3>Docker</h3>
+        <p>The image is <code>edufsantos/mockiapi</code> on Docker Hub.</p>
+<pre>docker run -p 3001:3001 edufsantos/mockiapi
+
+<span class="comment"># on another port</span>
+docker run -e PORT=8080 -p 8080:8080 \
+  edufsantos/mockiapi</pre>
+      </div>
+
+      <div class="card">
+        <h3>Cargo</h3>
+        <p>The crate is published on crates.io and builds with the dashboard already in it.</p>
+<pre>cargo install mockiapi
+mockiapi --port 3001</pre>
+      </div>
+
+      <div class="card">
+        <h3>From source</h3>
+        <p>Needs Rust and Node.js. The script builds the dashboard, builds the server and starts it with request logging on.</p>
+<pre>git clone https://github.com/sfeSantos/mockiapi
+cd mockiapi
+./init.sh        <span class="comment"># init.bat on Windows</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="limits">
+  <div class="wrap">
+    <p class="eyebrow">Good to know</p>
+    <h2>What it does not do</h2>
+    <p class="section-lead">mockiapi is a mock, and a small one on purpose. These are its limits today.</p>
+
+    <ul class="limits">
+      <li><strong>Endpoints live in memory.</strong> When the server stops they are gone and have to be registered again.</li>
+      <li><strong>Responses are JSON.</strong> The server always answers with <code>Content-Type: application/json</code>, and a response file can be 5 MB at most.</li>
+      <li><strong>One response per path.</strong> Every method an endpoint accepts gets the same body and status.</li>
+      <li><strong>No state between calls.</strong> A <code>POST</code> does not change what a later <code>GET</code> answers.</li>
+      <li><strong>gRPC is simulated.</strong> Calls are JSON over HTTP, not the gRPC wire protocol.</li>
+      <li><strong>GraphQL is matched by operation name.</strong> Arguments, variables and fragments do not change the answer, and subscriptions are refused.</li>
+    </ul>
+
+    <p class="section-lead">Several of these are tracked in the <a href="https://github.com/sfeSantos/mockiapi/issues">issue list</a>.</p>
+  </div>
+</section>
+
+<section id="name">
+  <div class="wrap">
+    <div class="about">
+      <img src="mockiapi.svg" width="120" height="120" alt="The mockiapi icon: an orange mockingbird">
+      <div>
+        <p class="eyebrow">The name</p>
+        <h2>Why a mockingbird</h2>
+        <p>A mockingbird copies the songs of other birds well enough to pass for them. mockiapi does the same for an API: it answers the way the real one would, so the code calling it cannot tell the difference.</p>
+        <p>It is written in Rust, with a Svelte dashboard.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>mockiapi is open source, under <a href="https://github.com/sfeSantos/mockiapi/blob/main/LICENSE">MIT</a> or <a href="https://github.com/sfeSantos/mockiapi/blob/main/LICENSE-APACHE">Apache 2.0</a>, at your option.</p>
+    <nav aria-label="Project links">
+      <a href="https://github.com/sfeSantos/mockiapi">GitHub</a>
+      <a href="https://crates.io/crates/mockiapi">crates.io</a>
+      <a href="https://hub.docker.com/r/edufsantos/mockiapi">Docker Hub</a>
+      <a href="https://github.com/sfeSantos/mockiapi/releases">Releases</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
