@@ -14,7 +14,7 @@ The bird in the icon is a mockingbird. A mockingbird copies the songs of other b
 
 What an endpoint can do:
 
-- answer with a fixed JSON file, on the HTTP methods you choose
+- answer with a fixed JSON file, on the HTTP methods you choose, with a different response for each method of a path if you want
 - accept path parameters such as `/api/user/{id}` and copy request values into the response
 - answer with any status code, after a delay, or under a rate limit
 - require Basic auth or a bearer token
@@ -154,7 +154,9 @@ The rules for a registration:
 - The path is required and must start with `/`.
 - At least one HTTP method is required. For several, tick more than one box, or send them comma-separated: `-F methods=GET,POST`.
 - The response file is required.
-- Registering a path that already exists replaces the endpoint that was there. If the registration comes without a file, the endpoint keeps the response it had and only its other settings are replaced.
+- A path can hold one endpoint per method. Register `/api/users` for `GET` and again for `POST` with another file and another status code, and each method gets its own answer.
+- Registering a path again for a method it already answers replaces the endpoint that answered it. If the registration comes without a file, the endpoint keeps the response it had and only its other settings are replaced.
+- A group is optional: `-F group=users`, or the **Group** field. It only sorts the list in the dashboard.
 
 And what callers get when a request does not fit:
 
@@ -450,7 +452,7 @@ How it behaves:
 
 ## 8. List, change and delete endpoints
 
-The dashboard lists every endpoint on the left, with its methods and its path. Click one to open it:
+The dashboard lists every endpoint on the left, with its methods and its path. A path with one endpoint for `GET` and another for `POST` shows up twice. **Group by** splits the list by the group you gave each endpoint, or by HTTP method. Click an endpoint to open it:
 
 - The form shows its settings. Change the status code, the delay, the rate limit, the methods or the authentication and click **Save**.
 - The **Response** box shows what the endpoint answers now. Edit the text and click **Save**, and the next call gets the new response. **Format** indents it when it is valid JSON. To replace it with a file, switch to **File**.
@@ -461,13 +463,22 @@ The dashboard lists every endpoint on the left, with its methods and its path. C
 
 A gRPC mock cannot be changed without a file: fill in the service and the method again and choose its response.
 
-**With curl**, change an endpoint by registering its path again. Without `-F file=...`, the response is kept:
+**With curl**, change an endpoint by registering its path and method again. Without `-F file=...`, the response is kept:
 
 ```bash
 curl -X POST http://localhost:3001/register \
   -F path=/api/hello \
   -F methods=GET \
   -F status_code=503
+```
+
+To change the methods of an endpoint, name it by the `id` that `/list` gives it. Without the id, `-F methods=PUT` would register a second endpoint next to the `GET` one:
+
+```bash
+curl -X POST http://localhost:3001/register \
+  -F id=1 \
+  -F path=/api/hello \
+  -F methods=GET,PUT
 ```
 
 List them:
@@ -477,23 +488,28 @@ curl http://localhost:3001/list
 ```
 
 ```json
-{
-  "/api/slow": {
+[
+  {
+    "id": 3,
+    "path": "/api/slow",
     "type": "REST",
     "method": ["GET"],
+    "group": null,
     "file": "uploads/b2bc44bf-f5eb-4c0e-aebf-4061dd9f3e1b.json",
     "status_code": 503,
     "delay": 500,
     "rate_limit": { "requests": 2, "window_ms": 10000 },
     "with_dynamic_vars": null
   }
-}
+]
 ```
 
-Read the response an endpoint holds, by its registered path, URL-encoded (`/` becomes `%2F`):
+The list is in the order the endpoints were registered. Up to 0.1.9 it was an object keyed by path, which could not hold two endpoints of one path.
+
+Read the response an endpoint holds, by its id:
 
 ```bash
-curl http://localhost:3001/content/%2Fapi%2Fhello
+curl http://localhost:3001/content/3
 ```
 
 ```json
@@ -503,14 +519,16 @@ curl http://localhost:3001/content/%2Fapi%2Fhello
 Delete one the same way:
 
 ```bash
-curl -X DELETE http://localhost:3001/delete/%2Fapi%2Fhello
+curl -X DELETE http://localhost:3001/delete/3
 ```
 
 ```
 Deleted successfully
 ```
 
-After that, `GET /api/hello` is back to `404`.
+After that, `GET /api/slow` is back to `404`.
+
+Both also take the registered path in place of the id, URL-encoded (`/` becomes `%2F`): `curl -X DELETE http://localhost:3001/delete/%2Fapi%2Fhello`. By path, `delete` removes every endpoint of that path, and `content` answers only when the path has a single one.
 
 ## Reference
 
@@ -520,9 +538,11 @@ After that, `GET /api/hello` is back to `404`.
 
 | Field | Required | Value |
 |---|---|---|
+| `id` | no | The id of the endpoint to change, as `GET /list` gives it. Needed only to change its methods. |
 | `path` | yes | Starts with `/`. May contain `{name}` segments and a query string. |
 | `methods` | yes | Comma-separated HTTP methods, for example `GET,POST` |
-| `file` | for a new path | The JSON response file, 5 MB at most. Left out for a path that is already registered, the response is kept (not for gRPC). |
+| `group` | no | A label such as `users`, used to sort the list in the dashboard |
+| `file` | for a new endpoint | The JSON response file, 5 MB at most. Left out for an endpoint that already exists, the response is kept (not for gRPC). |
 | `status_code` | no | Defaults to 200 |
 | `delay` | no | Milliseconds |
 | `rate_limit` | no | `<requests>/<window in ms>` |
@@ -545,7 +565,7 @@ A form the server refuses gets `400` with the reason as a JSON string, for examp
 | 400 | `Invalid gRPC request` | The gRPC body has no `service` or `rpc` |
 | 401 | `Unauthorized` | Missing or wrong `Authorization` header |
 | 404 | `Resource not found` | No endpoint matches the path |
-| 405 | `Method not allowed` | The endpoint exists but not for this method |
+| 405 | `Method not allowed` | The path is registered, but no endpoint of it answers this method |
 | 429 | `Rate limit exceeded` | The endpoint's budget for this method is used up |
 
 ### Logs

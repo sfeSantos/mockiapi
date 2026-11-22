@@ -1,5 +1,6 @@
 use warp::http::{Response, StatusCode};
 use warp::hyper::Body;
+use crate::routing::Miss;
 
 /// Why a mock endpoint did not answer with its registered response.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,6 +40,15 @@ impl MockError {
         *response.status_mut() = self.status();
 
         response
+    }
+}
+
+impl From<Miss> for MockError {
+    fn from(miss: Miss) -> Self {
+        match miss {
+            Miss::NoRoute => MockError::NotFound,
+            Miss::MethodNotAllowed => MockError::MethodNotAllowed,
+        }
     }
 }
 

@@ -4,8 +4,10 @@ use warp::http::StatusCode;
 use warp::multipart::FormData;
 use warp::{reply, Reply};
 use crate::handlers::multipart::RegistrationForm;
+use crate::handlers::registration::{register, remove_upload};
 use crate::middlewares::grpc_registry::GrpcRegistry;
 use crate::models::{EndpointKind, Endpoints, RegistrationError};
+use crate::routing::Route;
 use crate::utils::{json_response, text_response};
 
 pub async fn register_endpoint(
@@ -14,40 +16,19 @@ pub async fn register_endpoint(
     grpc_registry: Arc<GrpcRegistry>,
 ) -> impl Reply {
     // The refusal is answered here: a rejection would fall through to the mock catch-all.
-    match register(form, &endpoints, &grpc_registry).await {
+    match register_form(form, &endpoints, &grpc_registry).await {
         Ok(()) => reply::with_status(reply::json(&"Registered successfully"), StatusCode::OK),
         Err(error) => reply::with_status(reply::json(&error.reason()), error.status()),
     }
 }
 
-async fn register(
+async fn register_form(
     form: FormData,
     endpoints: &Endpoints,
     grpc_registry: &GrpcRegistry,
 ) -> Result<(), RegistrationError> {
     let form = RegistrationForm::read(form).await?;
-    let previous = form.path
-        .as_deref()
-        .and_then(|path| endpoints.get(path));
-    let registration = form.validate(previous.as_deref().map(|route| &route.endpoint))?;
-
-    if let Some(upload) = &registration.upload {
-        fs::write(&registration.endpoint.file, upload)
-            .await
-            .map_err(|_| RegistrationError::Storage)?;
-    }
-
-    if let Some(grpc) = registration.grpc {
-        grpc_registry.register_mock(&grpc.service, &grpc.rpc, grpc.response);
-    }
-
-    let kept_file = registration.upload.is_none();
-    let replaced = endpoints.insert(registration.path, registration.endpoint);
-
-    // Registering a path again with a new file supersedes its previous upload.
-    if let Some(replaced) = replaced.filter(|_| !kept_file) {
-        remove_upload(&replaced.endpoint.file).await;
-    }
+    register(form, endpoints, grpc_registry).await?;
 
     Ok(())
 }
@@ -56,15 +37,48 @@ pub async fn list_endpoint(endpoints: Endpoints) -> impl Reply {
     json_response(StatusCode::OK, endpoints.to_json())
 }
 
+/// How the admin API names an endpoint in a URL: by the id `GET /list` gives it, or by
+/// the path it was registered with, URL-encoded.
+#[derive(Debug, PartialEq, Eq)]
+enum EndpointKey {
+    Id(u64),
+    Path(String),
+}
+
+impl EndpointKey {
+    /// A registered path always starts with `/`, so it can never be taken for an id.
+    fn parse(segment: &str) -> Option<Self> {
+        if let Ok(id) = segment.parse() {
+            return Some(EndpointKey::Id(id));
+        }
+
+        urlencoding::decode(segment)
+            .ok()
+            .map(|path| EndpointKey::Path(path.into_owned()))
+    }
+}
+
 /// Answers the response an endpoint was registered with, as the text that was uploaded.
 ///
 /// It is read from the upload, not from memory: a GraphQL document is kept parsed, which
 /// loses the formatting the dashboard shows back to the user.
-pub async fn endpoint_content(path: String, endpoints: Endpoints) -> impl Reply {
-    let route = urlencoding::decode(&path)
-        .ok()
-        .and_then(|decoded_path| endpoints.get(&decoded_path));
-    let Some(route) = route else {
+pub async fn endpoint_content(key: String, endpoints: Endpoints) -> impl Reply {
+    let mut routes = match EndpointKey::parse(&key) {
+        Some(EndpointKey::Id(id)) => endpoints.get(id)
+            .into_iter()
+            .collect(),
+        Some(EndpointKey::Path(path)) => endpoints.registered_on(&path),
+        None => Vec::new(),
+    };
+
+    if routes.len() > 1 {
+        return text_response(
+            StatusCode::BAD_REQUEST,
+            "this path has several endpoints: ask for one by the id GET /list gives it",
+        );
+    }
+
+    let Some(route) = routes.pop() else {
         return text_response(StatusCode::NOT_FOUND, "Resource not found");
     };
 
@@ -74,31 +88,48 @@ pub async fn endpoint_content(path: String, endpoints: Endpoints) -> impl Reply 
     }
 }
 
+/// Deletes one endpoint by id, or every endpoint of a path.
 pub async fn delete_endpoint(
-    path_to_delete: String,
+    key: String,
     endpoints: Endpoints,
     grpc_registry: Arc<GrpcRegistry>,
 ) -> impl Reply {
-    let removed = urlencoding::decode(&path_to_delete)
-        .ok()
-        .and_then(|decoded_path| endpoints.remove(&decoded_path));
-    let Some(route) = removed else {
-        return reply::with_status("Resource not found", StatusCode::NOT_FOUND);
+    let removed: Vec<Arc<Route>> = match EndpointKey::parse(&key) {
+        Some(EndpointKey::Id(id)) => endpoints.remove(id)
+            .into_iter()
+            .collect(),
+        Some(EndpointKey::Path(path)) => endpoints.remove_path(&path),
+        None => Vec::new(),
     };
 
-    remove_upload(&route.endpoint.file).await;
+    if removed.is_empty() {
+        return reply::with_status("Resource not found", StatusCode::NOT_FOUND);
+    }
+
+    for route in &removed {
+        remove_upload(&route.endpoint.file).await;
+    }
+
+    let removed_grpc = removed
+        .iter()
+        .any(|route| route.endpoint.kind() == EndpointKind::Grpc);
 
     // The registry is shared by every gRPC endpoint, so its mocks go away with the last one.
-    if route.endpoint.kind() == EndpointKind::Grpc && !endpoints.has_kind(EndpointKind::Grpc) {
+    if removed_grpc && !endpoints.has_kind(EndpointKind::Grpc) {
         grpc_registry.clear();
     }
 
     reply::with_status("Deleted successfully", StatusCode::OK)
 }
 
-/// `file` holds the full relative path the upload was written to.
-async fn remove_upload(file: &str) {
-    if fs::remove_file(file).await.is_err() {
-        log::info!("Failed to delete file: {}", file);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn number_is_an_id_and_anything_else_is_a_path() {
+        assert_eq!(EndpointKey::parse("12"), Some(EndpointKey::Id(12)));
+        assert_eq!(EndpointKey::parse("%2Fapi%2Fhello"), Some(EndpointKey::Path("/api/hello".to_string())));
+        assert_eq!(EndpointKey::parse("%2F12"), Some(EndpointKey::Path("/12".to_string())));
     }
 }

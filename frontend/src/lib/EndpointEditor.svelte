@@ -17,17 +17,20 @@
     interface Props {
         /** The endpoint being changed, or `null` to register a new one. */
         endpoint: Endpoint | null;
+        /** The groups other endpoints already use, offered as suggestions. */
+        groups: string[];
         /** Sends the form and tells whether the server accepted it. */
         onsave: (form: FormData) => Promise<boolean>;
-        ondelete: (path: string) => void;
+        ondelete: (endpoint: Endpoint) => void;
         /** Called with the reason when the draft cannot be sent as it is. */
         oninvalid: (reason: string) => void;
     }
 
-    let { endpoint, onsave, ondelete, oninvalid }: Props = $props();
+    let { endpoint, groups, onsave, ondelete, oninvalid }: Props = $props();
 
     // The editor is created again for each endpoint, so the props are only read once.
-    const editing = untrack(() => endpoint !== null);
+    const editingId = untrack(() => endpoint?.id ?? null);
+    const editing = editingId !== null;
     let kind = $state<EndpointKind>(untrack(() => endpoint?.type ?? 'REST'));
     let draft = $state(untrack(() => (endpoint ? draftOf(endpoint) : emptyDraft())));
     let fileInput = $state<HTMLInputElement>();
@@ -48,7 +51,7 @@
         }
 
         try {
-            storedText = await fetchContent(endpoint.path);
+            storedText = await fetchContent(endpoint.id);
             draft.responseText = storedText;
             draft.responseSource = 'text';
         } catch {
@@ -87,7 +90,7 @@
         let form: FormData;
 
         try {
-            form = toFormData(kind, draft, editing, storedText);
+            form = toFormData(kind, draft, editingId, storedText);
         } catch (error) {
             oninvalid(error instanceof Error ? error.message : 'The form could not be sent');
             return;
@@ -137,7 +140,7 @@
                         placeholder="/api/example"
                     />
                     {#if editing}
-                        <small>The path identifies the endpoint. To move it, register a new one.</small>
+                        <small>To answer on another path, register a new endpoint.</small>
                     {/if}
                 </div>
 
@@ -151,6 +154,7 @@
                             </label>
                         {/each}
                     </div>
+                    <small>Other methods of this path can have an endpoint of their own.</small>
                 </div>
             {:else if kind === 'gRPC'}
                 <div class="form-group">
@@ -175,6 +179,17 @@
             {:else}
                 <small class="wide">A GraphQL endpoint always answers POST {GRAPHQL_PATH}.</small>
             {/if}
+
+            <div class="form-group wide">
+                <label for="group">Group</label>
+                <input type="text" id="group" list="known-groups" bind:value={draft.group} placeholder="users" />
+                <datalist id="known-groups">
+                    {#each groups as group}
+                        <option value={group}></option>
+                    {/each}
+                </datalist>
+                <small>Optional. The list of endpoints can be sorted by it.</small>
+            </div>
 
             <div class="form-group wide">
                 <div class="response-heading">
@@ -298,7 +313,7 @@
             <button class="btn-primary" type="submit">{editing ? 'Save' : 'Register'}</button>
 
             {#if endpoint}
-                <button class="btn-danger" type="button" onclick={() => ondelete(endpoint.path)}>Delete</button>
+                <button class="btn-danger" type="button" onclick={() => ondelete(endpoint)}>Delete</button>
             {/if}
         </div>
     </form>
