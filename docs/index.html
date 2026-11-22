@@ -857,12 +857,15 @@ curl -X POST localhost:3001/grpc \
     <div class="install">
       <div class="card">
         <h3>Release binary</h3>
-        <p>A single executable for Linux, macOS or Windows (amd64), with the dashboard inside. It can be started from any directory.</p>
+        <p>A single executable for Linux, macOS or Windows, with the dashboard inside. It can be started from any directory.</p>
         <div class="downloads">
           <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-amd64">Linux</a>
-          <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64">macOS</a>
+          <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-arm64">Linux ARM</a>
+          <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-arm64">macOS Apple Silicon</a>
+          <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64">macOS Intel</a>
           <a class="button" href="https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64">Windows</a>
         </div>
+        <p>Linux ARM and macOS Intel start with the release after 0.1.9.</p>
 <pre>chmod +x mockiapi-linux-amd64
 ./mockiapi-linux-amd64</pre>
         <p>On Windows, add the <code>.exe</code> extension after downloading.</p>

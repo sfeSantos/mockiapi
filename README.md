@@ -67,9 +67,15 @@ The script builds the dashboard into `frontend/dist`, builds the server with the
 
 ### With a release binary
 
-- [Linux (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-amd64)
-- [macOS (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64)
-- [Windows (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64) (add the `.exe` extension after downloading)
+| System | Download |
+|---|---|
+| Linux, Intel or AMD | [mockiapi-linux-amd64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-amd64) |
+| Linux, ARM | [mockiapi-linux-arm64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-arm64) |
+| macOS, Apple Silicon (M1 and later) | [mockiapi-macos-arm64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-arm64) |
+| macOS, Intel | [mockiapi-macos-amd64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64) |
+| Windows | [mockiapi-windows-amd64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64) (add the `.exe` extension after downloading) |
+
+The Linux ARM and macOS Intel binaries start with the release after 0.1.9. In 0.1.9 itself, `mockiapi-macos-amd64` is an Apple Silicon binary under the wrong name, so on an Intel Mac build [from source](#from-source) until the next release.
 
 ```bash
 chmod +x mockiapi-linux-amd64
@@ -745,9 +751,9 @@ git tag v0.1.9
 git push origin v0.1.9
 ```
 
-The workflow then checks that the tag matches `Cargo.toml`, creates a GitHub release named after the tag with notes generated from the merged pull requests, attaches the Linux, macOS and Windows binaries to it, and publishes the crate to crates.io. The crate goes last, because a version published there cannot be replaced.
+The workflow then checks that the tag matches `Cargo.toml`, creates a GitHub release named after the tag with notes generated from the merged pull requests, attaches the binaries to it (Linux and macOS for both amd64 and arm64, Windows for amd64), and publishes the crate to crates.io. The crate goes last, because a version published there cannot be replaced.
 
-The same tag also builds the Docker image and pushes it to Docker Hub as `edufsantos/mockiapi:<version>` and `latest`. That is a workflow of its own, **Docker**, which can also be run by hand from the Actions tab to build the image of a tag that already exists.
+The same tag also builds the Docker image and pushes it to Docker Hub as `edufsantos/mockiapi:<version>` and `latest`, for `linux/amd64` and `linux/arm64`. Each platform is built on a runner of its own architecture and the two are gathered under the same tags. That is a workflow of its own, **Docker**, which can also be run by hand from the Actions tab to build the image of a tag that already exists.
 
 The repository secrets these need:
 

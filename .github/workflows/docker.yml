@@ -27,9 +27,14 @@ env:
   IMAGE: edufsantos/mockiapi
 
 jobs:
-  image:
-    name: Build the Docker image
+  plan:
+    name: Work out what to build
     runs-on: ubuntu-latest
+    outputs:
+      push: ${{ steps.plan.outputs.push }}
+      ref: ${{ steps.plan.outputs.ref }}
+      version: ${{ steps.plan.outputs.version }}
+      tags: ${{ steps.plan.outputs.tags }}
     steps:
       - name: Work out what to build
         id: plan
@@ -39,7 +44,6 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             echo "push=false" >> "$GITHUB_OUTPUT"
-            echo "tags=$IMAGE:pull-request" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -78,20 +82,102 @@ jobs:
             exit 1
           fi
 
+  # One build per platform, each on a runner of that architecture: compiling Rust under
+  # emulation takes several times longer. When publishing, each build is pushed by digest
+  # with no tag, and the manifest job below gathers them under the tags.
+  image:
+    name: Build the image for ${{ matrix.platform }}
+    needs: plan
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            os: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            os: ubuntu-24.04-arm
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: steps.plan.outputs.push == 'true'
+        if: needs.plan.outputs.push == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ steps.plan.outputs.push == 'true' }}
-          tags: ${{ steps.plan.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.platform }}
+          # A pull request only proves the image builds. Nothing leaves the runner.
+          outputs: ${{ needs.plan.outputs.push == 'true' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE) || 'type=cacheonly' }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+      - name: Write down the digest
+        if: needs.plan.outputs.push == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir digests
+          echo "$DIGEST" > "digests/${{ matrix.arch }}"
+
+      - name: Keep the digest
+        if: needs.plan.outputs.push == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  manifest:
+    name: Publish the image for both platforms
+    needs: [plan, image]
+    if: needs.plan.outputs.push == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # One tag then answers with the image of the platform that pulls it.
+      - name: Gather the platforms under the tags
+        env:
+          TAGS: ${{ needs.plan.outputs.tags }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          tag_arguments=""
+
+          for tag in $(echo "$TAGS" | tr ',' ' '); do
+            tag_arguments="$tag_arguments --tag $tag"
+          done
+
+          sources=""
+
+          for digest in digests/*; do
+            sources="$sources $IMAGE@$(cat "$digest")"
+          done
+
+          docker buildx imagetools create $tag_arguments $sources
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
