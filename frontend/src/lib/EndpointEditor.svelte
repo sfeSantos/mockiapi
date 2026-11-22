@@ -11,14 +11,16 @@
         toFormData,
     } from './registration';
     import type { ResponseSource } from './registration';
+    import { groupsOf } from './grouping';
+    import { siblingsOf, statusOf } from './summary';
     import { ENDPOINT_KINDS, HTTP_METHODS } from './types';
     import type { Endpoint, EndpointKind } from './types';
 
     interface Props {
         /** The endpoint being changed, or `null` to register a new one. */
         endpoint: Endpoint | null;
-        /** The groups other endpoints already use, offered as suggestions. */
-        groups: string[];
+        /** Every registered endpoint: the source of group suggestions and of what else answers on the path. */
+        endpoints: Endpoint[];
         /** Sends the form and tells whether the server accepted it. */
         onsave: (form: FormData) => Promise<boolean>;
         ondelete: (endpoint: Endpoint) => void;
@@ -26,7 +28,7 @@
         oninvalid: (reason: string) => void;
     }
 
-    let { endpoint, groups, onsave, ondelete, oninvalid }: Props = $props();
+    let { endpoint, endpoints, onsave, ondelete, oninvalid }: Props = $props();
 
     // The editor is created again for each endpoint, so the props are only read once.
     const editingId = untrack(() => endpoint?.id ?? null);
@@ -62,6 +64,14 @@
     const fixedPath = $derived(kind === 'GraphQL' ? GRAPHQL_PATH : GRPC_PATH);
     const title = $derived(kind === 'REST' ? draft.path || 'New endpoint' : fixedPath);
     const fileIsOptional = $derived(canKeepResponse(kind, editing));
+    const groups = $derived(groupsOf(endpoints));
+    const siblings = $derived(kind === 'REST' ? siblingsOf(endpoints, draft.path, editingId) : []);
+    /** Methods ticked here that another endpoint of the path already answers: saving replaces that one. */
+    const replacedMethods = $derived(
+        HTTP_METHODS.filter(
+            (method) => draft.methods[method] && siblings.some((sibling) => sibling.method.includes(method)),
+        ),
+    );
 
     function selectFile(event: Event & { currentTarget: HTMLInputElement }) {
         draft.file = event.currentTarget.files?.[0] ?? null;
@@ -104,8 +114,29 @@
 
 <section class="editor">
     <header class="editor-heading">
-        <h1 title={title}>{title}</h1>
-        <span class="kind">{kind}</span>
+        <div class="identity">
+            {#if endpoint}
+                <span class="method-row">
+                    {#each endpoint.method as method}
+                        <span class="method method-{method.toLowerCase()}">{method}</span>
+                    {/each}
+                </span>
+            {/if}
+            <h1 title={title}>{title}</h1>
+            <span class="tag tag-kind">{kind}</span>
+            {#if endpoint?.group}
+                <span class="tag">group: {endpoint.group}</span>
+            {/if}
+        </div>
+
+        <div class="actions">
+            {#if endpoint}
+                <button class="btn-danger" type="button" onclick={() => ondelete(endpoint)}>Delete</button>
+            {/if}
+            <button class="btn-primary" type="submit" form="endpoint-form">
+                {editing ? 'Save changes' : 'Register endpoint'}
+            </button>
+        </div>
     </header>
 
     {#if !editing}
@@ -124,94 +155,121 @@
         </div>
     {/if}
 
-    <form onsubmit={submit}>
-        <fieldset>
-            <legend>Route</legend>
+    <form id="endpoint-form" onsubmit={submit}>
+        <section class="step" aria-labelledby="step-route">
+            <header>
+                <h2 id="step-route">Route</h2>
+                <p>Where the endpoint answers.</p>
+            </header>
 
-            {#if kind === 'REST'}
-                <div class="form-group wide">
-                    <label for="path">Path</label>
-                    <input
-                        type="text"
-                        id="path"
-                        class="code"
-                        bind:value={draft.path}
-                        readonly={editing}
-                        placeholder="/api/example"
-                    />
-                    {#if editing}
-                        <small>To answer on another path, register a new endpoint.</small>
-                    {/if}
-                </div>
-
-                <div class="form-group wide">
-                    <span class="group-label">HTTP Methods</span>
-                    <div class="checkbox-group">
-                        {#each HTTP_METHODS as method}
-                            <label class="check">
-                                <input type="checkbox" id={method} bind:checked={draft.methods[method]} />
-                                <span>{method}</span>
-                            </label>
-                        {/each}
+            <div class="step-fields route-fields">
+                {#if kind === 'REST'}
+                    <div class="form-group">
+                        <label for="path">Path</label>
+                        <input
+                            type="text"
+                            id="path"
+                            class="code"
+                            bind:value={draft.path}
+                            readonly={editing}
+                            placeholder="/api/example"
+                        />
+                        {#if editing}
+                            <small>To answer on another path, register a new endpoint.</small>
+                        {:else}
+                            <small>Use {'{name}'} for a segment that matches any value, as in /api/users/{'{id}'}.</small>
+                        {/if}
                     </div>
-                    <small>Other methods of this path can have an endpoint of their own.</small>
-                </div>
-            {:else if kind === 'gRPC'}
-                <div class="form-group">
-                    <label for="service">Service</label>
-                    <input
-                        type="text"
-                        id="service"
-                        class="code"
-                        bind:value={draft.grpcService}
-                        placeholder="com.example.MyService"
-                    />
-                </div>
-                <div class="form-group">
-                    <label for="rpc">RPC Method</label>
-                    <input type="text" id="rpc" class="code" bind:value={draft.grpcRpc} placeholder="GetSomething" />
-                </div>
-                {#if editing}
-                    <small class="wide">
-                        Every gRPC mock shares {GRPC_PATH}. Fill in a service and a method to add one or replace it.
-                    </small>
+                {:else if kind === 'gRPC'}
+                    <div class="form-group">
+                        <label for="service">Service</label>
+                        <input
+                            type="text"
+                            id="service"
+                            class="code"
+                            bind:value={draft.grpcService}
+                            placeholder="com.example.MyService"
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label for="rpc">RPC Method</label>
+                        <input type="text" id="rpc" class="code" bind:value={draft.grpcRpc} placeholder="GetSomething" />
+                    </div>
                 {/if}
-            {:else}
-                <small class="wide">A GraphQL endpoint always answers POST {GRAPHQL_PATH}.</small>
-            {/if}
 
-            <div class="form-group wide">
-                <label for="group">Group</label>
-                <input type="text" id="group" list="known-groups" bind:value={draft.group} placeholder="users" />
-                <datalist id="known-groups">
-                    {#each groups as group}
-                        <option value={group}></option>
-                    {/each}
-                </datalist>
-                <small>Optional. The list of endpoints can be sorted by it.</small>
-            </div>
-
-            <div class="form-group wide">
-                <div class="response-heading">
-                    {#if draft.responseSource === 'file'}
-                        <label for="response-file">Response (JSON File)</label>
-                    {:else}
-                        <label for="response-text">Response (JSON Text)</label>
-                    {/if}
-
-                    <div class="segmented" role="group" aria-label="Response source">
-                        {#each RESPONSE_SOURCES as { source, label }}
-                            <button
-                                type="button"
-                                class:active={draft.responseSource === source}
-                                aria-pressed={draft.responseSource === source}
-                                onclick={() => (draft.responseSource = source)}
-                            >
-                                {label}
-                            </button>
+                <div class="form-group">
+                    <label for="group">Group</label>
+                    <input type="text" id="group" list="known-groups" bind:value={draft.group} placeholder="users" />
+                    <datalist id="known-groups">
+                        {#each groups as group}
+                            <option value={group}></option>
                         {/each}
-                    </div>
+                    </datalist>
+                    <small>Optional. A label to sort the list by.</small>
                 </div>
+
+                {#if kind === 'REST'}
+                    <div class="form-group wide">
+                        <span class="group-label">HTTP Methods</span>
+                        <div class="checkbox-group">
+                            {#each HTTP_METHODS as method}
+                                <label class="check">
+                                    <input type="checkbox" id={method} bind:checked={draft.methods[method]} />
+                                    <span>{method}</span>
+                                </label>
+                            {/each}
+                        </div>
+
+                        {#if siblings.length > 0}
+                            <p class="path-note">
+                                Also on this path:
+                                {#each siblings as sibling, index}
+                                    {#if index > 0}, {/if}<strong>{sibling.method.join(', ')}</strong> ({statusOf(sibling)})
+                                {/each}. Each one has its own response.
+                            </p>
+                        {/if}
+
+                        {#if replacedMethods.length > 0}
+                            <p class="path-note path-warning">
+                                {replacedMethods.join(', ')} is already answered on this path. Saving replaces that endpoint.
+                            </p>
+                        {/if}
+                    </div>
+                {:else if kind === 'gRPC'}
+                    <small class="wide">
+                        Every gRPC mock answers POST {GRPC_PATH}. Fill in a service and a method to add one or replace it.
+                    </small>
+                {:else}
+                    <small class="wide">A GraphQL endpoint always answers POST {GRAPHQL_PATH}.</small>
+                {/if}
+            </div>
+        </section>
+
+        <section class="step" aria-labelledby="step-response">
+            <header>
+                <h2 id="step-response">Response</h2>
+                <p>What callers get back, as JSON.</p>
+
+                <div class="segmented" role="group" aria-label="Response source">
+                    {#each RESPONSE_SOURCES as { source, label }}
+                        <button
+                            type="button"
+                            class:active={draft.responseSource === source}
+                            aria-pressed={draft.responseSource === source}
+                            onclick={() => (draft.responseSource = source)}
+                        >
+                            {label}
+                        </button>
+                    {/each}
+                </div>
+            </header>
+
+            <div class="form-group">
+                {#if draft.responseSource === 'file'}
+                    <label for="response-file">JSON file</label>
+                {:else}
+                    <label for="response-text">JSON text</label>
+                {/if}
 
                 <!-- Hidden, not removed: the chosen file lives in the element. -->
                 <input
@@ -227,7 +285,7 @@
                     <textarea
                         id="response-text"
                         class="code"
-                        rows="10"
+                        rows="9"
                         spellcheck="false"
                         bind:value={draft.responseText}
                         placeholder={'{ "message": "Hello, world!" }'}
@@ -248,73 +306,74 @@
                     <small>Leave it empty to keep the current response.</small>
                 {/if}
             </div>
-        </fieldset>
+        </section>
 
-        <fieldset>
-            <legend>Behaviour</legend>
+        <section class="step" aria-labelledby="step-behaviour">
+            <header>
+                <h2 id="step-behaviour">Behaviour</h2>
+                <p>Optional. Simulate errors, slow answers and limits.</p>
+            </header>
 
-            <div class="form-group">
-                <label for="status">Status Code</label>
-                <input type="number" id="status" bind:value={draft.statusCode} placeholder="200" />
-            </div>
-
-            <div class="form-group">
-                <label for="delay">Delay (ms)</label>
-                <input type="number" id="delay" bind:value={draft.delay} placeholder="0" />
-            </div>
-
-            <div class="form-group">
-                <label for="limit">Rate Limit</label>
-                <input type="text" id="limit" bind:value={draft.rateLimit} placeholder="10/1000" />
-                <small>Requests / window in ms</small>
-            </div>
-
-            {#if kind === 'REST'}
+            <div class="step-fields">
                 <div class="form-group">
-                    <span class="group-label">Dynamic Vars</span>
-                    <label class="check">
-                        <input type="checkbox" id="with-dynamic-vars" bind:checked={draft.dynamicVars} />
-                        <span>Replace {'{{name}}'} placeholders in the response</span>
-                    </label>
+                    <label for="status">Status Code</label>
+                    <input type="number" id="status" bind:value={draft.statusCode} placeholder="200" />
                 </div>
-            {/if}
-        </fieldset>
 
-        <fieldset>
-            <legend>Authentication</legend>
+                <div class="form-group">
+                    <label for="delay">Delay (ms)</label>
+                    <input type="number" id="delay" bind:value={draft.delay} placeholder="0" />
+                </div>
 
-            <div class="form-group">
-                <label for="auth">Authentication Type</label>
-                <select id="auth" bind:value={draft.authType}>
-                    <option value="none">No Auth</option>
-                    <option value="basic">Basic Auth</option>
-                    <option value="token">Token Auth</option>
-                </select>
+                <div class="form-group">
+                    <label for="limit">Rate Limit</label>
+                    <input type="text" id="limit" bind:value={draft.rateLimit} placeholder="10/1000" />
+                    <small>Requests / window in ms</small>
+                </div>
+
+                {#if kind === 'REST'}
+                    <div class="form-group wide">
+                        <label class="check">
+                            <input type="checkbox" id="with-dynamic-vars" bind:checked={draft.dynamicVars} />
+                            <span>Replace {'{{name}}'} placeholders in the response with values from the request</span>
+                        </label>
+                    </div>
+                {/if}
             </div>
+        </section>
 
-            {#if draft.authType === 'basic'}
+        <section class="step" aria-labelledby="step-authentication">
+            <header>
+                <h2 id="step-authentication">Authentication</h2>
+                <p>Optional. Ask callers for credentials.</p>
+            </header>
+
+            <div class="step-fields">
                 <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" bind:value={draft.username} />
+                    <label for="auth">Type</label>
+                    <select id="auth" bind:value={draft.authType}>
+                        <option value="none">No Auth</option>
+                        <option value="basic">Basic Auth</option>
+                        <option value="token">Token Auth</option>
+                    </select>
                 </div>
-                <div class="form-group">
-                    <label for="pwd">Password</label>
-                    <input type="password" id="pwd" bind:value={draft.password} />
-                </div>
-            {:else if draft.authType === 'token'}
-                <div class="form-group wide">
-                    <label for="token">Token Data (JSON)</label>
-                    <textarea id="token" class="code" rows="3" bind:value={draft.tokenData}></textarea>
-                </div>
-            {/if}
-        </fieldset>
 
-        <div class="actions">
-            <button class="btn-primary" type="submit">{editing ? 'Save' : 'Register'}</button>
-
-            {#if endpoint}
-                <button class="btn-danger" type="button" onclick={() => ondelete(endpoint)}>Delete</button>
-            {/if}
-        </div>
+                {#if draft.authType === 'basic'}
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" bind:value={draft.username} />
+                    </div>
+                    <div class="form-group">
+                        <label for="pwd">Password</label>
+                        <input type="password" id="pwd" bind:value={draft.password} />
+                    </div>
+                {:else if draft.authType === 'token'}
+                    <div class="form-group wide">
+                        <label for="token">Token Data (JSON)</label>
+                        <textarea id="token" class="code" rows="3" bind:value={draft.tokenData}></textarea>
+                    </div>
+                {/if}
+            </div>
+        </section>
     </form>
 </section>

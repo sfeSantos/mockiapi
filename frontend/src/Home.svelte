@@ -3,8 +3,8 @@
     import { deleteEndpoint, importMocks, listEndpoints, registerEndpoint } from './lib/api';
     import EndpointEditor from './lib/EndpointEditor.svelte';
     import EndpointNav from './lib/EndpointNav.svelte';
+    import SummaryStrip from './lib/SummaryStrip.svelte';
     import TryIt from './lib/TryIt.svelte';
-    import { groupsOf } from './lib/grouping';
     import type { Endpoint, Notice, NoticeKind } from './lib/types';
 
     const NOTICE_LIFETIME_MS = 5000;
@@ -14,19 +14,38 @@
     const origin = window.location.origin;
 
     let endpoints = $state<Endpoint[]>([]);
+    /** Prefix of the address fragment that names the open endpoint, as in `#endpoint-3`. */
+    const SELECTION_PREFIX = '#endpoint-';
+
     /** The id of the endpoint open in the editor. `null` is a new endpoint. */
-    let selectedId = $state<number | null>(null);
+    let selectedId = $state<number | null>(selectionInAddress());
     /** Goes up after every save, so the editor and the panel start again from what the server holds. */
     let revision = $state(0);
     let loading = $state(false);
     let notices = $state<Notice[]>([]);
     let nextNoticeId = 0;
     let importInput = $state<HTMLInputElement>();
+    let originCopied = $state(false);
 
     const selected = $derived(endpoints.find((endpoint) => endpoint.id === selectedId) ?? null);
-    const groups = $derived(groupsOf(endpoints));
 
     onMount(refresh);
+
+    // The open endpoint is kept in the address, so a reload or a shared link comes back to it.
+    $effect(() => {
+        const fragment = selectedId === null ? '' : `${SELECTION_PREFIX}${selectedId}`;
+
+        if (window.location.hash !== fragment) {
+            history.replaceState(null, '', fragment || window.location.pathname);
+        }
+    });
+
+    function selectionInAddress(): number | null {
+        const fragment = window.location.hash;
+        const id = Number(fragment.slice(SELECTION_PREFIX.length));
+
+        return fragment.startsWith(SELECTION_PREFIX) && Number.isInteger(id) ? id : null;
+    }
 
     function notify(kind: NoticeKind, message: string) {
         const id = nextNoticeId++;
@@ -117,6 +136,17 @@
         }
     }
 
+    /** Copies the address clients should call. The clipboard can be refused, which is not worth a notice. */
+    async function copyOrigin() {
+        try {
+            await navigator.clipboard.writeText(origin);
+            originCopied = true;
+            setTimeout(() => (originCopied = false), 1500);
+        } catch {
+            originCopied = false;
+        }
+    }
+
     function warn(warnings: string[]) {
         for (const warning of warnings.slice(0, LISTED_WARNINGS)) {
             notify('error', warning);
@@ -144,8 +174,13 @@
 <div class="workbench">
     <header class="top-bar">
         <div class="brand">
-            <span class="name">MockiAPI Dashboard</span>
-            <span class="origin">{origin}</span>
+            <span class="name">MockiAPI</span>
+            <span class="origin">
+                {origin}
+                <button class="copy" type="button" title="Copy the address of this server" onclick={copyOrigin}>
+                    {originCopied ? 'copied' : 'copy'}
+                </button>
+            </span>
         </div>
         <div class="top-actions">
             <input
@@ -163,7 +198,7 @@
             >
                 Import file
             </button>
-            <button class="btn-primary" type="button" onclick={() => (selectedId = null)}>New endpoint</button>
+            <button class="btn-primary" type="button" onclick={() => (selectedId = null)}>+ New endpoint</button>
         </div>
     </header>
 
@@ -173,6 +208,8 @@
         {/each}
     </div>
 
+    <SummaryStrip {endpoints} />
+
     <main>
         <EndpointNav {endpoints} {selectedId} {loading} onselect={(id) => (selectedId = id)} />
 
@@ -180,7 +217,7 @@
         {#key `${selected?.id ?? ''}#${revision}`}
             <EndpointEditor
                 endpoint={selected}
-                {groups}
+                {endpoints}
                 onsave={save}
                 ondelete={remove}
                 oninvalid={(reason) => notify('error', reason)}
@@ -190,6 +227,6 @@
     </main>
 
     <footer>
-        MockiAPI &copy; {currentYear} — REST • GraphQL • gRPC
+        MockiAPI &copy; {currentYear} · REST, GraphQL and gRPC mocks
     </footer>
 </div>

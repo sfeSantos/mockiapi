@@ -103,7 +103,7 @@ The server prints:
 .: Server running at http://localhost:3001
 ```
 
-Open http://localhost:3001 in a browser. You should see the **MockiAPI Dashboard** in three columns: the list of endpoints, empty for now, the form for a new endpoint, and a **Try it** panel.
+Open http://localhost:3001 in a browser. You should see the **MockiAPI** dashboard. A strip at the top counts the endpoints, their groups, how many are protected and how many answer with a delay or under a rate limit. Below it are three columns: the list of endpoints, empty for now, the form for a new endpoint, and a **Try it** panel.
 
 The server creates an `uploads` directory in the directory it was started from. That is where it keeps a copy of each response file.
 
@@ -123,7 +123,7 @@ Create a file named `hello.json`:
 | HTTP Methods | GET |
 | Response (JSON File) | `hello.json` |
 
-Leave the other fields empty and click **Register**. The endpoint shows up in the list on the left and stays open in the form. In the **Try it** panel, click **Send** to call it from the browser and see the status, the time it took and the body.
+Leave the other fields empty and click **Register endpoint**, at the top of the form. The endpoint shows up in the list on the left and stays open in the form. In the **Try it** panel, click **Send** to call it from the browser and see the status, the time it took and the body.
 
 There is no need for a file if you would rather type: next to **Response**, switch from **File** to **Text** and paste the JSON into the box.
 
@@ -357,7 +357,7 @@ Create `graphql.json`:
 }
 ```
 
-**In the dashboard**, open the **GraphQL** tab, choose `graphql.json` and click **Register**. The path and method fields are hidden because they are fixed: the endpoint is always `POST /api/graphql`.
+**In the dashboard**, open the **GraphQL** tab, choose `graphql.json` and click **Register endpoint**. The path and method fields are hidden because they are fixed: the endpoint is always `POST /api/graphql`.
 
 **With curl:**
 
@@ -455,12 +455,12 @@ How it behaves:
 
 The dashboard lists every endpoint on the left, with its methods and its path. A path with one endpoint for `GET` and another for `POST` shows up twice. **Group by** splits the list by the group you gave each endpoint, or by HTTP method. Click an endpoint to open it:
 
-- The form shows its settings. Change the status code, the delay, the rate limit, the methods or the authentication and click **Save**.
-- The **Response** box shows what the endpoint answers now. Edit the text and click **Save**, and the next call gets the new response. **Format** indents it when it is valid JSON. To replace it with a file, switch to **File**.
+- The form shows its settings. Change the status code, the delay, the rate limit, the methods or the authentication and click **Save changes**.
+- The **Response** box shows what the endpoint answers now. Edit the text and click **Save changes**, and the next call gets the new response. **Format** indents it when it is valid JSON. To replace it with a file, switch to **File**.
 - The **Try it** panel calls the endpoint and shows what it answers. The path is editable, so you can fill in `{id}` segments and query parameters, and a POST or PUT request can carry a body. The same request is shown as a `curl` command.
 - **Delete** removes it.
 
-**New endpoint**, at the top, goes back to an empty form.
+**New endpoint**, at the top, goes back to an empty form. The search box above the list filters it by path or group, and the open endpoint is kept in the address of the page, so a reload comes back to it.
 
 A gRPC mock cannot be changed without a file: fill in the service and the method again and choose its response.
 
@@ -656,7 +656,7 @@ services:
 
 ### From the dashboard
 
-**Import**, at the top, takes the same three kinds of file and registers their endpoints on a running server. With curl:
+**Import file**, at the top, takes the same three kinds of file and registers their endpoints on a running server. With curl:
 
 ```bash
 curl -X POST http://localhost:3001/import -F file=@mocks.yaml

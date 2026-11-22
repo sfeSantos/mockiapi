@@ -1,6 +1,7 @@
 <script lang="ts">
     import { GROUPINGS, GROUPING_LABELS, sectionsOf, storedGrouping, storeGrouping } from './grouping';
     import type { Grouping } from './grouping';
+    import { matching, statusOf } from './summary';
     import type { Endpoint } from './types';
 
     interface Props {
@@ -14,8 +15,10 @@
     let { endpoints, selectedId, loading, onselect }: Props = $props();
 
     let grouping = $state<Grouping>(storedGrouping());
+    let search = $state('');
 
-    const sections = $derived(sectionsOf(endpoints, grouping));
+    const found = $derived(matching(endpoints, search));
+    const sections = $derived(sectionsOf(found, grouping));
 
     function groupBy(choice: Grouping) {
         grouping = choice;
@@ -25,17 +28,28 @@
 
 <nav class="endpoint-nav" aria-label="Registered endpoints">
     <div class="pane-heading">
-        <span>Registered Endpoints</span>
+        <span>Endpoints</span>
         {#if loading}
             <span class="loader" role="status" aria-label="Loading"></span>
         {:else}
-            <span class="count">{endpoints.length}</span>
+            <span class="count">{found.length === endpoints.length ? endpoints.length : `${found.length} of ${endpoints.length}`}</span>
         {/if}
     </div>
 
     {#if endpoints.length === 0}
-        <p class="empty-state">No endpoints registered yet.</p>
+        <div class="empty-state">
+            <p><strong>No endpoints yet.</strong></p>
+            <p>Fill in the form to register the first one, or use <strong>Import file</strong> to load a mocks file or a Postman collection.</p>
+        </div>
     {:else}
+        <input
+            type="search"
+            class="nav-search"
+            aria-label="Search endpoints"
+            placeholder="Search path or group"
+            bind:value={search}
+        />
+
         <div class="grouping">
             <span id="grouping-label">Group by</span>
             <div class="segmented" role="group" aria-labelledby="grouping-label">
@@ -51,6 +65,10 @@
                 {/each}
             </div>
         </div>
+
+        {#if found.length === 0}
+            <p class="empty-state">No endpoint matches "{search.trim()}".</p>
+        {/if}
 
         {#each sections as section (section.title)}
             {#if section.title !== null}
@@ -76,9 +94,9 @@
                                 {/each}
                             </span>
                             <span class="path" title={endpoint.path}>{endpoint.path}</span>
-                            {#if endpoint.type !== 'REST'}
-                                <span class="kind">{endpoint.type}</span>
-                            {/if}
+                            <span class="answer" title={endpoint.type === 'REST' ? 'Status code it answers with' : undefined}>
+                                {endpoint.type === 'REST' ? statusOf(endpoint) : endpoint.type}
+                            </span>
                         </button>
                     </li>
                 {/each}

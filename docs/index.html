@@ -584,7 +584,7 @@ footer nav {
 docker run -p 3001:3001 edufsantos/mockiapi</pre>
 
     <figure class="shot">
-      <img src="dashboard.png" width="2720" height="1640" alt="The mockiapi dashboard. On the left, a list of seven registered endpoints. In the middle, the form for /api/users/{id} with its JSON response open as text. On the right, the Try it panel showing a 200 OK answer for /api/users/42.">
+      <img src="dashboard.png" width="2720" height="1640" alt="The mockiapi dashboard. At the top, four counters: 6 endpoints, 3 groups, 1 protected, 1 with a delay or a limit. On the left, the list of endpoints with their methods and status codes. In the middle, the form for GET /api/users, with its JSON response open as text and a note that POST has its own endpoint on the same path. On the right, the Try it panel with the request and its curl command.">
       <figcaption>The dashboard: the registered endpoints, the one being edited, and a real call to it.</figcaption>
     </figure>
   </div>
@@ -794,11 +794,11 @@ curl -X POST localhost:3001/grpc \
     <div class="cards">
       <div class="card">
         <h3>Endpoint list</h3>
-        <p>Every registered endpoint with its methods and its path, and a label for GraphQL and gRPC ones. Split the list by the group you gave each endpoint, or by HTTP method. Click an endpoint to open it.</p>
+        <p>Every registered endpoint with its methods, its path and the status it answers with. Search it, or split it by the group you gave each endpoint or by HTTP method. Counters above it show how many endpoints are protected or slowed down.</p>
       </div>
       <div class="card">
         <h3>Editor</h3>
-        <p>Tabs for REST, GraphQL and gRPC. Give the response as a file or as text, and use <strong>Format</strong> to indent the JSON. <strong>Save</strong> applies a change, <strong>Delete</strong> removes the endpoint.</p>
+        <p>Tabs for REST, GraphQL and gRPC. Give the response as a file or as text, and use <strong>Format</strong> to indent the JSON. <strong>Save changes</strong> applies a change, <strong>Delete</strong> removes the endpoint.</p>
       </div>
       <div class="card">
         <h3>Try it</h3>
@@ -826,7 +826,7 @@ curl -X POST localhost:3001/grpc \
           </tr>
           <tr>
             <td><code>POST /import</code></td>
-            <td>Registers every endpoint of an uploaded mocks file (YAML or JSON) or Postman collection. The dashboard's <strong>Import</strong> button uses it.</td>
+            <td>Registers every endpoint of an uploaded mocks file (YAML or JSON) or Postman collection. The dashboard's <strong>Import file</strong> button uses it.</td>
           </tr>
           <tr>
             <td><code>GET /list</code></td>
