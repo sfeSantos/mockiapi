@@ -1,18 +1,20 @@
 use std::net::SocketAddr;
+use std::path::Path;
 use std::process::exit;
 use std::sync::Arc;
 use log::info;
 use warp::Filter;
-use mockiapi::config::{self, Command, PORT_VARIABLE, USAGE};
+use mockiapi::config::{self, Command, Environment, USAGE};
 use mockiapi::handlers::multipart::UPLOADS_DIR;
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
+use mockiapi::mocks;
 use mockiapi::models::Endpoints;
 use mockiapi::routes::{admin_routes, dashboard_routes, mock_routes};
 
 #[tokio::main]
 async fn main() {
-    let port = match config::parse(std::env::args().skip(1), std::env::var(PORT_VARIABLE).ok()) {
-        Ok(Command::Serve { port }) => port,
+    let (port, mocks_file) = match config::parse(std::env::args().skip(1), Environment::read()) {
+        Ok(Command::Serve { port, mocks }) => (port, mocks),
         Ok(Command::Help) => {
             println!("{USAGE}");
             return;
@@ -32,6 +34,12 @@ async fn main() {
 
     let endpoints = Endpoints::default();
     let registry = Arc::new(GrpcRegistry::new());
+
+    // Before the port is opened, so the first request already finds the endpoints.
+    if let Some(file) = mocks_file {
+        load_mocks(&file, &endpoints, &registry).await;
+    }
+
     let log = warp::log::custom(|info| {
         info!("{} - {} {} {} [{}] {:?}",
             info.remote_addr()
@@ -66,4 +74,23 @@ async fn main() {
 
     println!(".: Server running at http://localhost:{port}");
     server.await;
+}
+
+/// Registers the endpoints of the mocks file, or stops the process when it cannot be loaded:
+/// a server that starts without the mocks it was asked for would fail later and less clearly.
+async fn load_mocks(file: &Path, endpoints: &Endpoints, registry: &GrpcRegistry) {
+    match mocks::load_file(file, endpoints, registry).await {
+        Ok(loaded) => {
+            // Printed, not logged: without RUST_LOG the logger only shows errors.
+            for warning in &loaded.warnings {
+                eprintln!("warning: {warning}");
+            }
+
+            println!(".: Loaded {} endpoints from {}", loaded.registered, file.display());
+        }
+        Err(error) => {
+            eprintln!("error: could not load {}: {error}", file.display());
+            exit(1);
+        }
+    }
 }

@@ -6,7 +6,7 @@
 
 mockiapi is a mock HTTP server. You tell it "when a request arrives at this path, answer with this JSON file", and it does. Your frontend, mobile app or integration test can then talk to `http://localhost:3001` while the real API is not ready or not reachable.
 
-Endpoints are registered while the server is running, from a web dashboard or with `curl`. Nothing is configured in files and nothing needs a restart.
+Endpoints are registered while the server is running, from a web dashboard or with `curl`, and nothing needs a restart. A set of endpoints can also be kept in a file, written by hand or exported from Postman, and loaded when the server starts.
 
 For a short overview with a screenshot of the dashboard, see the [product page](https://sfesantos.github.io/mockiapi/). Its source is `docs/index.html`.
 
@@ -23,7 +23,7 @@ What an endpoint can do:
 
 Two things to know before you start:
 
-- Endpoints are kept in memory. When the server stops, they are gone and have to be registered again.
+- Endpoints are kept in memory. When the server stops, they are gone, unless they come from a [mocks file](#9-start-with-your-mocks-already-loaded) that is loaded again at the next start.
 - The response file must be JSON. The server always answers with `Content-Type: application/json`.
 
 ## Contents
@@ -36,7 +36,8 @@ Two things to know before you start:
 6. [Mock a GraphQL API](#6-mock-a-graphql-api)
 7. [Mock a gRPC call](#7-mock-a-grpc-call)
 8. [List, change and delete endpoints](#8-list-change-and-delete-endpoints)
-9. [Reference](#reference)
+9. [Start with your mocks already loaded](#9-start-with-your-mocks-already-loaded)
+10. [Reference](#reference)
 
 ## 1. Start the server
 
@@ -530,6 +531,145 @@ After that, `GET /api/slow` is back to `404`.
 
 Both also take the registered path in place of the id, URL-encoded (`/` becomes `%2F`): `curl -X DELETE http://localhost:3001/delete/%2Fapi%2Fhello`. By path, `delete` removes every endpoint of that path, and `content` answers only when the path has a single one.
 
+## 9. Start with your mocks already loaded
+
+Registering by hand is fine while you explore. For a set of mocks you want every day, in CI or in a container, describe them in a file and give it to the server:
+
+```bash
+./mockiapi-linux-amd64 --mocks mocks.yaml
+```
+
+```
+.: Loaded 3 endpoints from mocks.yaml
+.: Server running at http://localhost:3001
+```
+
+The endpoints are registered before the port is opened, so the first request already finds them. The file can live in your repository next to the code that calls the API.
+
+### The mocks file
+
+Write it in YAML (`.yaml` or `.yml`) or in JSON (any other extension). Both take the same fields.
+
+```yaml
+endpoints:
+  - path: /api/users
+    methods: [GET]
+    group: users
+    file: responses/users.json        # relative to the mocks file
+
+  - path: /api/users
+    methods: [POST]
+    group: users
+    status_code: 201
+    body:                             # or write the response right here
+      id: 3
+      name: Grace
+
+  - path: /api/users/{id}
+    with_dynamic_vars: true
+    body: '{ "id": "{{id}}", "name": "Ada" }'
+```
+
+The same file in JSON:
+
+```json
+{
+  "endpoints": [
+    { "path": "/api/users", "methods": ["GET"], "group": "users", "file": "responses/users.json" },
+    { "path": "/api/users", "methods": ["POST"], "group": "users", "status_code": 201, "body": { "id": 3, "name": "Grace" } },
+    { "path": "/api/users/{id}", "with_dynamic_vars": true, "body": "{ \"id\": \"{{id}}\", \"name\": \"Ada\" }" }
+  ]
+}
+```
+
+| Field | Required | Value |
+|---|---|---|
+| `path` | yes | As in a registration: starts with `/`, may contain `{name}` segments and a query string |
+| `methods` | no | A list. Defaults to `[GET]`, and to `[POST]` for GraphQL and gRPC |
+| `file` or `body` | one of them | The response. `file` is a path relative to the mocks file. `body` is the response itself; written as text it is used as it is, which is how a template with bare `{{name}}` placeholders is given |
+| `group` | no | The label the dashboard sorts the endpoint under |
+| `status_code`, `delay` | no | Numbers, as in a registration |
+| `rate_limit` | no | `10/1000`, or `{ requests: 10, window_ms: 1000 }` |
+| `authentication` | no | `{ username: ..., password: ... }` or `{ tokenData: ... }` |
+| `with_dynamic_vars` | no | `true` to replace `{{name}}` placeholders |
+| `type` | no | `REST` (the default), `GraphQL` or `gRPC` |
+| `grpcService`, `grpcRPC` | for gRPC | The service and the method the mock answers |
+
+A complete example with every kind of endpoint is in [`tests/fixtures/mocks/mocks.yaml`](tests/fixtures/mocks/mocks.yaml).
+
+The server does not start with a file it cannot load whole. It stops with exit code 1 and says which endpoint and why:
+
+```
+error: could not load mocks.yaml: endpoint 2 (/api/users): the response file responses/users.json could not be read: No such file or directory (os error 2)
+```
+
+The same goes for a field it does not know, which is usually a typo, and for two endpoints of the file that answer the same method on the same path.
+
+Endpoints that came from a file are like any other afterwards: they are listed, and they can be changed and deleted in the dashboard or over HTTP. Those changes are kept in memory and are not written back to the file. The server works on copies in `uploads`, so it never changes or deletes your files.
+
+### A Postman collection
+
+`--mocks` also takes a collection exported from Postman (v2.1 or v2.0):
+
+```bash
+./mockiapi-linux-amd64 --mocks shop.postman_collection.json
+```
+
+Every request that has a saved example becomes an endpoint:
+
+- the method and the path come from the request, and the status code and the body from its first example
+- `GET /users` and `POST /users` become two endpoints, each with its own response
+- a path variable such as `/users/:id` becomes `/users/{id}`
+- the host, a `{{baseUrl}}` variable in its place and the query string are left out
+- requests inside folders are read at any depth, and the outermost folder becomes the group
+
+A request that cannot become an endpoint is skipped with a warning, and the rest of the collection is still loaded:
+
+```
+warning: "Login page" (GET /login) was skipped: it has no saved example to answer with
+.: Loaded 4 endpoints from shop.postman_collection.json
+```
+
+That happens to a request with no saved example, with an example whose body is not JSON, or that repeats the method and path of an earlier one. Authorization settings, scripts and variables other than the base of the URL are not read.
+
+### With Docker
+
+Mount the directory that holds the file and name it with `MOCKS`, or with `--mocks` after the image name:
+
+```bash
+docker run -p 3001:3001 -v "$PWD/mocks:/mocks" -e MOCKS=/mocks/mocks.yaml edufsantos/mockiapi
+```
+
+In a `docker-compose.yml`:
+
+```yaml
+services:
+  mockiapi:
+    image: edufsantos/mockiapi
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./mocks:/mocks:ro
+    environment:
+      MOCKS: /mocks/mocks.yaml
+```
+
+### From the dashboard
+
+**Import**, at the top, takes the same three kinds of file and registers their endpoints on a running server. With curl:
+
+```bash
+curl -X POST http://localhost:3001/import -F file=@mocks.yaml
+```
+
+```json
+{ "registered": 3, "warnings": [] }
+```
+
+The name of the file tells YAML from JSON. An imported endpoint replaces the ones it overlaps, by the same rule as a registration, and the others stay. The file is taken whole or not at all: a refusal answers `400` with the reason.
+
+An uploaded file has no directory of its own, so `file:` does not work in it. Write every response in `body`.
+
 ## Reference
 
 ### Registration fields
@@ -555,7 +695,7 @@ A form the server refuses gets `400` with the reason as a JSON string, for examp
 
 ### Reserved paths
 
-`POST /register`, `GET /list`, `GET /content/...` and `DELETE /delete/...` belong to the server, and so do the dashboard's own files (`/`, `/assets/...`). They are matched before the mocks, so a mock registered on one of them is never reached.
+`POST /register`, `POST /import`, `GET /list`, `GET /content/...` and `DELETE /delete/...` belong to the server, and so do the dashboard's own files (`/`, `/assets/...`). They are matched before the mocks, so a mock registered on one of them is never reached.
 
 ### Answers the server gives on its own
 

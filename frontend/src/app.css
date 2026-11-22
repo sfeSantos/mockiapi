@@ -658,3 +658,14 @@ textarea {
 .btn-secondary:hover {
   border-color: var(--ink-soft);
 }
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-actions .btn-secondary {
+  min-height: 44px;
+  padding: 0 18px;
+}

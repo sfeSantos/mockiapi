@@ -1,0 +1,43 @@
+# Every kind of endpoint mockiapi can load at startup.
+endpoints:
+  - path: /api/users
+    methods: [GET]
+    group: users
+    file: responses/users.json
+
+  - path: /api/users
+    methods: [POST]
+    group: users
+    status_code: 201
+    body:
+      id: 3
+      name: Grace
+
+  # A template: {{id}} is filled from the path of the request.
+  - path: /api/users/{id}
+    methods: [GET]
+    group: users
+    with_dynamic_vars: true
+    body: '{ "id": "{{id}}", "name": "Ada" }'
+
+  - path: /api/orders
+    methods: [GET]
+    group: orders
+    delay: 20
+    rate_limit: 100/1000
+    authentication:
+      tokenData: secret-token
+    body: []
+
+  - path: /api/graphql
+    type: GraphQL
+    group: graph
+    file: responses/graphql.json
+
+  - path: /grpc
+    type: gRPC
+    grpcService: com.example.BookService
+    grpcRPC: GetBook
+    body:
+      id: b123
+      title: Mock Book

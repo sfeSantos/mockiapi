@@ -12,7 +12,7 @@ pub const UPLOADS_DIR: &str = "uploads";
 const DEFAULT_STATUS_CODE: u16 = 200;
 
 /// The fields of the dashboard form, exactly as they were sent.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RegistrationForm {
     /// The registration to change. Left out, the path and the methods decide what is replaced.
     pub id: Option<String>,
@@ -288,7 +288,7 @@ async fn part_text(part: Part) -> Result<String, RegistrationError> {
     String::from_utf8(bytes.into()).map_err(|_| RegistrationError::Invalid("form fields must be UTF-8 text"))
 }
 
-async fn part_bytes(part: Part) -> Result<Bytes, RegistrationError> {
+pub async fn part_bytes(part: Part) -> Result<Bytes, RegistrationError> {
     part.stream()
         .try_fold(BytesMut::new(), |mut buffer, chunk| async move {
             buffer.put(chunk);
