@@ -20,6 +20,17 @@
   --success-ink: #14532d;
   --error-background: #fee2e2;
   --error-ink: #7f1d1d;
+  --method-get: #075985;
+  --method-get-background: #e0f2fe;
+  --method-post: #166534;
+  --method-post-background: #dcfce7;
+  --method-put: #854d0e;
+  --method-put-background: #fef3c7;
+  --method-patch: #6b21a8;
+  --method-patch-background: #f3e8ff;
+  --method-delete: #991b1b;
+  --method-delete-background: #fee2e2;
+  --warning-background: #fff7ed;
   --radius: 4px;
   --font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
@@ -84,9 +95,91 @@ textarea {
 }
 
 .brand .origin {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--on-dark-muted);
+}
+
+.brand .copy {
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid #57534e;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--on-dark);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.brand .copy:hover {
+  border-color: var(--on-dark-muted);
+}
+
+/* Summary: the state of the server before any click */
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 12px 20px;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stat {
+  min-width: 132px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--background);
+}
+
+.stat dt {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.stat dd {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.summary-notes strong {
+  color: var(--ink);
+}
+
+.kinds {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 14px;
 }
 
 main {
@@ -141,7 +234,7 @@ footer {
 /* Endpoint list */
 
 .endpoint-nav {
-  flex: 1 1 260px;
+  flex: 1 1 290px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -186,11 +279,32 @@ footer {
   border-color: var(--border-strong);
 }
 
+.endpoint-item.selected {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .endpoint-item .methods {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  min-width: 48px;
+  gap: 3px;
+}
+
+.endpoint-item .answer {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.nav-search {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  font-size: 13px;
 }
 
 .endpoint-item .path {
@@ -203,7 +317,16 @@ footer {
   font-size: 13px;
 }
 
+/* A method reads as a coloured pill everywhere it shows up. */
 .method {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background-color: var(--border);
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
@@ -211,38 +334,45 @@ footer {
 }
 
 .method-get {
-  color: #075985;
+  color: var(--method-get);
+  background-color: var(--method-get-background);
 }
 
 .method-post {
-  color: #166534;
+  color: var(--method-post);
+  background-color: var(--method-post-background);
 }
 
 .method-put {
-  color: #854d0e;
+  color: var(--method-put);
+  background-color: var(--method-put-background);
 }
 
 .method-patch {
-  color: #6b21a8;
+  color: var(--method-patch);
+  background-color: var(--method-patch-background);
 }
 
 .method-delete {
-  color: #991b1b;
+  color: var(--method-delete);
+  background-color: var(--method-delete-background);
 }
 
 .grouping {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
   padding: 0 8px;
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .grouping .segmented button {
   min-height: 28px;
-  padding: 0 10px;
+  padding: 0 9px;
 }
 
 .section-title {
@@ -262,15 +392,16 @@ footer {
   color: var(--muted);
 }
 
-.kind {
-  flex: 0 0 auto;
-  font-size: 12px;
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 8px;
   color: var(--muted);
 }
 
-.empty-state {
-  padding: 16px 8px;
-  color: var(--muted);
+.empty-state strong {
+  color: var(--ink);
 }
 
 .loader {
@@ -305,11 +436,52 @@ footer {
   padding: 20px 24px;
 }
 
+/* Stays in view while the form scrolls, so saving never needs a trip to the bottom. */
 .editor-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 16px;
+  margin: -20px -24px 0;
+  padding: 14px 24px;
+  background-color: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+
+.identity {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.method-row {
+  display: flex;
+  gap: 4px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background-color: var(--surface);
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.tag-kind {
+  border-color: var(--ink-soft);
+  font-weight: 600;
 }
 
 .editor-heading h1 {
@@ -348,26 +520,79 @@ footer {
 .editor form {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 14px;
 }
 
-fieldset {
-  border: 0;
+/* One block per question the form asks, each saying what it is for. */
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+}
+
+.step > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.step h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.step > header p {
+  flex: 1;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.step-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px;
 }
 
-legend {
-  width: 100%;
-  margin-bottom: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
+/* The path is the long field of the route, so it gets the wider column. */
+.route-fields {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+@media (max-width: 640px) {
+  .route-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+}
+
+/* Below this width the notes wrap under the tiles, where they read from the left. */
+@media (max-width: 1040px) {
+  .summary-notes,
+  .kinds {
+    text-align: left;
+    justify-content: flex-start;
+  }
+}
+
+.path-note {
   font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
   color: var(--muted);
+}
+
+.path-note strong {
+  color: var(--ink);
+}
+
+.path-warning {
+  padding: 6px 10px;
+  border-left: 3px solid var(--accent);
+  background-color: var(--warning-background);
+  color: var(--ink-soft);
 }
 
 .form-group {
@@ -459,8 +684,8 @@ input[type="file"] {
 
 .btn-primary,
 .btn-danger {
-  min-height: 44px;
-  padding: 0 22px;
+  min-height: 40px;
+  padding: 0 18px;
   border-radius: var(--radius);
   font-weight: 600;
   cursor: pointer;
@@ -482,7 +707,7 @@ input[type="file"] {
 }
 
 .top-bar .btn-primary {
-  min-height: 36px;
+  min-height: 38px;
   padding: 0 16px;
 }
 
@@ -567,9 +792,8 @@ input[type="file"] {
 .block-heading {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 12px;
+  align-items: center;
+  gap: 4px 10px;
 }
 
 .block-label {
@@ -579,10 +803,26 @@ input[type="file"] {
   letter-spacing: 0.06em;
 }
 
-.status {
+.status-pill {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background-color: var(--success-background);
+  color: var(--success-ink);
   font-family: var(--font-mono);
   font-size: 12px;
-  color: #86efac;
+  font-weight: 600;
+}
+
+.status-pill-error {
+  background-color: var(--error-background);
+  color: var(--error-ink);
+}
+
+.status-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--on-dark-muted);
 }
 
 .status-error {
@@ -604,7 +844,6 @@ pre {
 
 /* Response source */
 
-.response-heading,
 .response-footer {
   display: flex;
   flex-wrap: wrap;
@@ -667,8 +906,8 @@ textarea {
 
 /* On the dark bar the secondary button is an outline: the bar's light text on a white fill is unreadable. */
 .top-actions .btn-secondary {
-  min-height: 44px;
-  padding: 0 18px;
+  min-height: 38px;
+  padding: 0 16px;
   border-color: var(--on-dark-muted);
   background-color: transparent;
   color: var(--background);
