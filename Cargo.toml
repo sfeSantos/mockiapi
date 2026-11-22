@@ -2,11 +2,12 @@
 name = "mockiapi"
 version = "0.1.9"
 edition = "2024"
-authors = ["Eduardo Santos <eduf.santos@mail.com>"]
+authors = ["Eduardo Santos"]
 repository = "https://github.com/sfeSantos/mockiapi"
-description = "A flexible, feature-rich mock API server with an intuitive frontend that simplifies development."
+homepage = "https://sfesantos.github.io/mockiapi/"
+description = "A mock HTTP server in a single binary, with a web dashboard. Register REST, GraphQL and gRPC endpoints while it runs, or load them from a file or a Postman collection."
 license = "MIT OR Apache-2.0"
-keywords = ["mock", "rest", "api"]
+keywords = ["mock", "api", "rest", "graphql", "grpc"]
 categories = ["development-tools::testing", "web-programming::http-server"]
 # frontend/dist is not in git, so it has to be listed for the published crate to carry it.
 include = ["/src", "/build.rs", "/frontend/dist", "/README.md", "/LICENSE", "/LICENSE-APACHE"]
