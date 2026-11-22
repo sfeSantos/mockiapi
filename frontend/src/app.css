@@ -665,7 +665,17 @@ textarea {
   gap: 8px;
 }
 
+/* On the dark bar the secondary button is an outline: the bar's light text on a white fill is unreadable. */
 .top-actions .btn-secondary {
   min-height: 44px;
   padding: 0 18px;
+  border-color: var(--on-dark-muted);
+  background-color: transparent;
+  color: var(--background);
+  font-size: 14px;
+}
+
+.top-actions .btn-secondary:hover {
+  border-color: var(--background);
+  background-color: var(--dark-raised);
 }

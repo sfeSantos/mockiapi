@@ -161,7 +161,7 @@
                 title="Register the endpoints of a mocks file (JSON or YAML) or of a Postman collection"
                 onclick={() => importInput?.click()}
             >
-                Import
+                Import file
             </button>
             <button class="btn-primary" type="button" onclick={() => (selectedId = null)}>New endpoint</button>
         </div>
