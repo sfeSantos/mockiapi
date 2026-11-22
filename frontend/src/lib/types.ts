@@ -39,6 +39,13 @@ export interface Endpoint {
     authentication?: AuthData;
 }
 
+/** What `POST /import` answers for a mocks file it registered. */
+export interface ImportResult {
+    registered: number;
+    /** What the file held that could not become an endpoint, such as a Postman request with no example. */
+    warnings: string[];
+}
+
 export type NoticeKind = 'success' | 'error';
 
 export interface Notice {

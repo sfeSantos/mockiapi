@@ -27,3 +27,4 @@ chrono = "0.4.40"
 form_urlencoded = "1.2.1"
 graphql-parser = "0.4.1"
 rust-embed = { version = "8.14.0", features = ["mime-guess"] }
+serde_norway = "0.9"

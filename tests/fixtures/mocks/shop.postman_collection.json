@@ -1,0 +1,53 @@
+{
+  "info": {
+    "name": "Shop API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users?page=1", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "page", "value": "1" }] }
+          },
+          "response": [
+            { "name": "Two users", "code": 200, "body": "[{ \"id\": 1, \"name\": \"Ada\" }, { \"id\": 2, \"name\": \"Linus\" }]" }
+          ]
+        },
+        {
+          "name": "Create user",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          },
+          "response": [
+            { "name": "Created", "code": 201, "body": "{ \"id\": 3, \"name\": \"Grace\" }" }
+          ]
+        },
+        {
+          "name": "Admin",
+          "item": [
+            {
+              "name": "Delete user",
+              "request": { "method": "DELETE", "url": "https://api.example.com/api/users/:id" },
+              "response": [{ "name": "Gone", "code": 204, "body": "" }]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+      "response": [{ "name": "Up", "code": 200, "body": "{ \"status\": \"up\" }" }]
+    },
+    {
+      "name": "Login page",
+      "request": { "method": "GET", "url": "{{baseUrl}}/login" },
+      "response": []
+    }
+  ]
+}

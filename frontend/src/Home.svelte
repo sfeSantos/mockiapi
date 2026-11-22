@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { deleteEndpoint, listEndpoints, registerEndpoint } from './lib/api';
+    import { deleteEndpoint, importMocks, listEndpoints, registerEndpoint } from './lib/api';
     import EndpointEditor from './lib/EndpointEditor.svelte';
     import EndpointNav from './lib/EndpointNav.svelte';
     import TryIt from './lib/TryIt.svelte';
@@ -8,6 +8,8 @@
     import type { Endpoint, Notice, NoticeKind } from './lib/types';
 
     const NOTICE_LIFETIME_MS = 5000;
+    /** More skipped requests than this are counted, not listed, so the notices stay readable. */
+    const LISTED_WARNINGS = 3;
     const currentYear = new Date().getFullYear();
     const origin = window.location.origin;
 
@@ -19,6 +21,7 @@
     let loading = $state(false);
     let notices = $state<Notice[]>([]);
     let nextNoticeId = 0;
+    let importInput = $state<HTMLInputElement>();
 
     const selected = $derived(endpoints.find((endpoint) => endpoint.id === selectedId) ?? null);
     const groups = $derived(groupsOf(endpoints));
@@ -89,6 +92,41 @@
         );
     }
 
+    /** Sends the chosen mocks file and shows what the server did with it. */
+    async function importFile(event: Event & { currentTarget: HTMLInputElement }) {
+        const input = event.currentTarget;
+        const file = input.files?.[0];
+        // Cleared right away, so choosing the same file again fires the event again.
+        input.value = '';
+
+        if (!file) {
+            return;
+        }
+
+        const imported = await attempt(async () => {
+            const result = await importMocks(file);
+            const endpointWord = result.registered === 1 ? 'endpoint' : 'endpoints';
+
+            notify('success', `Imported ${result.registered} ${endpointWord} from ${file.name}`);
+            warn(result.warnings);
+        });
+
+        if (imported) {
+            selectedId = null;
+            await refresh();
+        }
+    }
+
+    function warn(warnings: string[]) {
+        for (const warning of warnings.slice(0, LISTED_WARNINGS)) {
+            notify('error', warning);
+        }
+
+        if (warnings.length > LISTED_WARNINGS) {
+            notify('error', `${warnings.length - LISTED_WARNINGS} more requests were skipped`);
+        }
+    }
+
     async function remove(endpoint: Endpoint) {
         const name = `${endpoint.method.join(', ')} ${endpoint.path}`;
 
@@ -109,7 +147,24 @@
             <span class="name">MockiAPI Dashboard</span>
             <span class="origin">{origin}</span>
         </div>
-        <button class="btn-primary" type="button" onclick={() => (selectedId = null)}>New endpoint</button>
+        <div class="top-actions">
+            <input
+                type="file"
+                accept=".json,.yaml,.yml,application/json"
+                hidden
+                bind:this={importInput}
+                onchange={importFile}
+            />
+            <button
+                class="btn-secondary"
+                type="button"
+                title="Register the endpoints of a mocks file (JSON or YAML) or of a Postman collection"
+                onclick={() => importInput?.click()}
+            >
+                Import
+            </button>
+            <button class="btn-primary" type="button" onclick={() => (selectedId = null)}>New endpoint</button>
+        </div>
     </header>
 
     <div class="notices" aria-live="polite">
