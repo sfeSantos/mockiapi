@@ -17,6 +17,7 @@ fn endpoint(body: MockBody, method: &str) -> Endpoint {
     Endpoint {
         body,
         method: vec![method.to_string()],
+        group: None,
         file: String::new(),
         status_code: Some(200),
         rate_limit: None,
@@ -60,7 +61,7 @@ fn routes_with_registry(
     let endpoints = Endpoints::default();
 
     for (path, endpoint) in registered {
-        endpoints.insert(path.to_string(), endpoint);
+        endpoints.insert(path.to_string(), endpoint, None);
     }
 
     mock_routes(endpoints, registry)
@@ -447,4 +448,65 @@ async fn test_grpc_endpoint_answers_the_registered_mock() {
     assert_eq!(found.status(), StatusCode::OK);
     assert_eq!(json_body(found.body()), json!({ "id": "b123" }));
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+}
+
+fn rest_endpoint_answering(method: &str, status_code: u16, body: &'static str) -> Endpoint {
+    let mut answering = endpoint(MockBody::Raw(Bytes::from_static(body.as_bytes())), method);
+    answering.status_code = Some(status_code);
+
+    answering
+}
+
+#[tokio::test]
+async fn test_one_path_answers_each_method_with_its_own_response() {
+    let filter = routes(vec![
+        ("/users", rest_endpoint_answering("GET", 200, "[{\"id\":1}]")),
+        ("/users", rest_endpoint_answering("POST", 201, "{\"id\":2}")),
+    ]);
+
+    let listed = request().method("GET").path("/users").reply(&filter).await;
+    let created = request().method("POST").path("/users").reply(&filter).await;
+    let refused = request().method("PUT").path("/users").reply(&filter).await;
+
+    assert_eq!(listed.status(), StatusCode::OK);
+    assert_eq!(json_body(listed.body())[0]["id"], 1);
+    assert_eq!(created.status(), StatusCode::CREATED);
+    assert_eq!(json_body(created.body())["id"], 2);
+    assert_eq!(refused.status(), StatusCode::METHOD_NOT_ALLOWED);
+}
+
+#[tokio::test]
+async fn test_one_templated_path_answers_each_method_with_its_own_response() {
+    let filter = routes(vec![
+        ("/users/{id}", rest_endpoint_answering("GET", 200, "{\"id\":1}")),
+        ("/users/{id}", rest_endpoint_answering("DELETE", 204, "")),
+    ]);
+
+    let read = request().method("GET").path("/users/1").reply(&filter).await;
+    let deleted = request().method("DELETE").path("/users/1").reply(&filter).await;
+    let refused = request().method("PATCH").path("/users/1").reply(&filter).await;
+
+    assert_eq!(read.status(), StatusCode::OK);
+    assert_eq!(deleted.status(), StatusCode::NO_CONTENT);
+    assert_eq!(refused.status(), StatusCode::METHOD_NOT_ALLOWED);
+}
+
+#[tokio::test]
+async fn test_rate_limit_counts_only_the_requests_of_its_own_registration() {
+    let mut limited = rest_endpoint_answering("GET", 200, "[]");
+    limited.rate_limit = Some(RateLimit { requests: 1, window_ms: 60_000 });
+    let filter = routes(vec![
+        ("/users", limited),
+        ("/users", rest_endpoint_answering("POST", 201, "{}")),
+    ]);
+
+    let first_get = request().method("GET").path("/users").reply(&filter).await;
+    let first_post = request().method("POST").path("/users").reply(&filter).await;
+    let second_post = request().method("POST").path("/users").reply(&filter).await;
+    let second_get = request().method("GET").path("/users").reply(&filter).await;
+
+    assert_eq!(first_get.status(), StatusCode::OK);
+    assert_eq!(first_post.status(), StatusCode::CREATED);
+    assert_eq!(second_post.status(), StatusCode::CREATED);
+    assert_eq!(second_get.status(), StatusCode::TOO_MANY_REQUESTS);
 }

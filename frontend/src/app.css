@@ -222,8 +222,44 @@ footer {
   color: #854d0e;
 }
 
+.method-patch {
+  color: #6b21a8;
+}
+
 .method-delete {
   color: #991b1b;
+}
+
+.grouping {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.grouping .segmented button {
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.section-title .count {
+  font-weight: 400;
+  color: var(--muted);
 }
 
 .kind {

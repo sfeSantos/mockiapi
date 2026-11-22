@@ -10,6 +10,7 @@ export type ResponseSource = 'file' | 'text';
 /** What the editor holds while an endpoint is being filled in. */
 export interface RegistrationDraft {
     path: string;
+    group: string;
     methods: Record<HttpMethod, boolean>;
     /** A number input holds `null` while it is empty. */
     statusCode: number | null;
@@ -33,7 +34,8 @@ export class InvalidDraft extends Error {}
 export function emptyDraft(): RegistrationDraft {
     return {
         path: '',
-        methods: { GET: true, POST: false, PUT: false, DELETE: false },
+        group: '',
+        methods: methodsWhere((method) => method === 'GET'),
         statusCode: null,
         delay: null,
         rateLimit: '',
@@ -59,17 +61,23 @@ export function draftOf(endpoint: Endpoint): RegistrationDraft {
         ...emptyDraft(),
         ...credentialsOf(endpoint.authentication),
         path: endpoint.path,
-        methods: {
-            GET: allowed.includes('GET'),
-            POST: allowed.includes('POST'),
-            PUT: allowed.includes('PUT'),
-            DELETE: allowed.includes('DELETE'),
-        },
+        group: endpoint.group ?? '',
+        methods: methodsWhere((method) => allowed.includes(method)),
         statusCode: endpoint.status_code,
         delay: endpoint.delay,
         rateLimit: rateLimit ? `${rateLimit.requests}/${rateLimit.window_ms}` : '',
         dynamicVars: endpoint.with_dynamic_vars === true,
     };
+}
+
+function methodsWhere(selected: (method: HttpMethod) => boolean): Record<HttpMethod, boolean> {
+    const methods = {} as Record<HttpMethod, boolean>;
+
+    for (const method of HTTP_METHODS) {
+        methods[method] = selected(method);
+    }
+
+    return methods;
 }
 
 function credentialsOf(
@@ -109,23 +117,29 @@ export function canKeepResponse(kind: EndpointKind, editing: boolean): boolean {
  * GraphQL and gRPC endpoints live on a fixed path and only answer POST, so the path and
  * the methods of the draft only count for REST. Optional fields left empty are not sent.
  *
+ * `editingId` is the id of the endpoint being changed, or `null` for a new one. Sending
+ * it is what lets the methods of an endpoint change without registering another one.
+ *
  * `storedText` is the response the endpoint holds on the server, when it was loaded.
  * Text that still equals it is not sent again.
  */
 export function toFormData(
     kind: EndpointKind,
     draft: RegistrationDraft,
-    editing: boolean,
+    editingId: number | null,
     storedText: string | null = null,
 ): FormData {
     const response = responseOf(kind, draft, storedText);
 
-    if (response === null && !canKeepResponse(kind, editing)) {
+    if (response === null && !canKeepResponse(kind, editingId !== null)) {
         throw new InvalidDraft(MISSING_RESPONSE[draft.responseSource]);
     }
 
     const form = new FormData();
+    appendOptional(form, 'id', editingId);
     form.append('path', pathOf(kind, draft));
+    // Always sent, so that clearing the field takes the endpoint out of its group.
+    form.append('group', draft.group.trim());
     form.append('methods', methodsOf(kind, draft).join(','));
     form.append('isGraphQL', String(kind === 'GraphQL'));
     form.append('with_dynamic_vars', String(kind === 'REST' && draft.dynamicVars));

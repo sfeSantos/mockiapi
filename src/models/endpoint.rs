@@ -43,6 +43,8 @@ pub struct Endpoint {
     #[serde(rename = "type", serialize_with = "serialize_kind")]
     pub body: MockBody,
     pub method: Vec<String>,
+    /// Free label the dashboard sorts endpoints under, such as `users` or `orders`.
+    pub group: Option<String>,
     /// Path of the uploaded file on disk, kept so it can be removed with the endpoint.
     pub file: String,
     pub status_code: Option<u16>,

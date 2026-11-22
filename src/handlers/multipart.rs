@@ -14,7 +14,10 @@ const DEFAULT_STATUS_CODE: u16 = 200;
 /// The fields of the dashboard form, exactly as they were sent.
 #[derive(Debug, Default)]
 pub struct RegistrationForm {
+    /// The registration to change. Left out, the path and the methods decide what is replaced.
+    pub id: Option<String>,
     pub path: Option<String>,
+    pub group: Option<String>,
     pub methods: Option<String>,
     pub status_code: Option<String>,
     pub delay: Option<String>,
@@ -71,7 +74,9 @@ impl RegistrationForm {
 
     fn text_field(&mut self, name: &str) -> Option<&mut Option<String>> {
         match name {
+            "id" => Some(&mut self.id),
             "path" => Some(&mut self.path),
+            "group" => Some(&mut self.group),
             "methods" => Some(&mut self.methods),
             "status_code" => Some(&mut self.status_code),
             "delay" => Some(&mut self.delay),
@@ -85,15 +90,38 @@ impl RegistrationForm {
         }
     }
 
+    /// The id of the registration the form asks to change, when it names one.
+    pub fn target(&self) -> Result<Option<u64>, RegistrationError> {
+        let Some(id) = self.id.as_deref().map(str::trim).filter(|id| !id.is_empty()) else {
+            return Ok(None);
+        };
+
+        id.parse()
+            .map(Some)
+            .map_err(|_| RegistrationError::Invalid("id must be the number GET /list gives for the endpoint"))
+    }
+
+    /// The methods the form asks for, uppercased.
+    pub fn requested_methods(&self) -> Result<Vec<String>, RegistrationError> {
+        parse_methods(self.methods.as_deref().unwrap_or_default())
+    }
+
+    pub fn has_file(&self) -> bool {
+        self.file.is_some()
+    }
+
     /// Checks every field and builds the endpoint. Nothing is written or stored here.
     ///
-    /// `previous` is the endpoint already registered on the same path, when there is one.
+    /// `previous` is the registration this one takes the place of, when there is one.
     /// A form that comes without a file then keeps its response and replaces the rest.
     pub fn validate(self, previous: Option<&Endpoint>) -> Result<Registration, RegistrationError> {
         let path = non_empty(self.path)
             .filter(|path| path.starts_with('/'))
             .ok_or(RegistrationError::Invalid("path is required and must start with /"))?;
         let method = parse_methods(self.methods.as_deref().unwrap_or_default())?;
+        let group = self.group
+            .map(|group| group.trim().to_string())
+            .filter(|group| !group.is_empty());
         let status_code = parse_status_code(self.status_code.as_deref().unwrap_or_default())?;
         let delay = self.delay.and_then(|delay| delay.trim().parse::<u64>().ok());
         let rate_limit = parse_rate_limit(self.rate_limit.as_deref().unwrap_or_default())?;
@@ -108,6 +136,7 @@ impl RegistrationForm {
             let endpoint = Endpoint {
                 body: kept_body(previous, kind)?,
                 method,
+                group,
                 file: previous.file.clone(),
                 status_code: Some(status_code),
                 authentication,
@@ -138,6 +167,7 @@ impl RegistrationForm {
         let endpoint = Endpoint {
             body,
             method,
+            group,
             file: format!("{UPLOADS_DIR}/{}.json", Uuid::new_v4()),
             status_code: Some(status_code),
             authentication,
@@ -327,6 +357,31 @@ mod tests {
             .unwrap();
 
         assert_eq!(registration.endpoint.method, ["GET", "POST"]);
+    }
+
+    #[test]
+    fn group_is_trimmed_and_an_empty_one_means_none() {
+        let grouped = RegistrationForm { group: Some(" users ".to_string()), ..form() }
+            .validate(None)
+            .unwrap();
+        let ungrouped = RegistrationForm { group: Some("  ".to_string()), ..form() }
+            .validate(None)
+            .unwrap();
+
+        assert_eq!(grouped.endpoint.group.as_deref(), Some("users"));
+        assert_eq!(ungrouped.endpoint.group, None);
+    }
+
+    #[test]
+    fn id_names_the_registration_to_change() {
+        assert_eq!(form().target(), Ok(None));
+        assert_eq!(RegistrationForm { id: Some(String::new()), ..form() }.target(), Ok(None));
+        assert_eq!(RegistrationForm { id: Some("7".to_string()), ..form() }.target(), Ok(Some(7)));
+        assert!(RegistrationForm { id: Some("seven".to_string()), ..form() }
+            .target()
+            .unwrap_err()
+            .reason()
+            .contains("id"));
     }
 
     #[test]

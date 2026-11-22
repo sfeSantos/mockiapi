@@ -1,8 +1,5 @@
 import type { Endpoint } from './types';
 
-/** `GET /list` answers an object keyed by path. */
-type EndpointsByPath = Record<string, Omit<Endpoint, 'path'>>;
-
 export async function listEndpoints(): Promise<Endpoint[]> {
     const response = await fetch('/list');
 
@@ -10,15 +7,12 @@ export async function listEndpoints(): Promise<Endpoint[]> {
         throw new Error('Failed to load endpoints');
     }
 
-    const endpointsByPath: EndpointsByPath = await response.json();
-
-    return Object.entries(endpointsByPath)
-        .map(([path, endpoint]) => ({ path, ...endpoint }));
+    return response.json();
 }
 
 /** The response an endpoint was registered with, as the text that was uploaded. */
-export async function fetchContent(path: string): Promise<string> {
-    const response = await fetch(`/content/${encodeURIComponent(path)}`);
+export async function fetchContent(id: number): Promise<string> {
+    const response = await fetch(`/content/${id}`);
 
     if (!response.ok) {
         throw new Error('Failed to load the response of the endpoint');
@@ -35,8 +29,8 @@ export async function registerEndpoint(form: FormData): Promise<void> {
     }
 }
 
-export async function deleteEndpoint(path: string): Promise<void> {
-    const response = await fetch(`/delete/${encodeURIComponent(path)}`, { method: 'DELETE' });
+export async function deleteEndpoint(id: number): Promise<void> {
+    const response = await fetch(`/delete/${id}`, { method: 'DELETE' });
 
     if (!response.ok) {
         throw new Error('Failed to delete endpoint');

@@ -711,7 +711,7 @@ curl -H "Authorization: Bearer my-secret-token" \
     <div class="cards">
       <div class="card">
         <h3>HTTP methods</h3>
-        <p>Choose which methods an endpoint accepts. Any other method on that path gets <code>405 Method not allowed</code>.</p>
+        <p>Choose which methods an endpoint accepts. A path can hold one endpoint per method, so <code>GET /users</code> and <code>POST /users</code> each get their own response and status. A method nobody registered gets <code>405 Method not allowed</code>.</p>
       </div>
       <div class="card">
         <h3>Edit in place</h3>
@@ -790,7 +790,7 @@ curl -X POST localhost:3001/grpc \
     <div class="cards">
       <div class="card">
         <h3>Endpoint list</h3>
-        <p>Every registered endpoint with its methods and its path, and a label for GraphQL and gRPC ones. Click one to open it.</p>
+        <p>Every registered endpoint with its methods and its path, and a label for GraphQL and gRPC ones. Split the list by the group you gave each endpoint, or by HTTP method. Click an endpoint to open it.</p>
       </div>
       <div class="card">
         <h3>Editor</h3>
@@ -818,19 +818,19 @@ curl -X POST localhost:3001/grpc \
         <tbody>
           <tr>
             <td><code>POST /register</code></td>
-            <td>Registers an endpoint from a multipart form. Sent again for a path that exists, it replaces the endpoint. Without a file, the response is kept and only the settings change.</td>
+            <td>Registers an endpoint from a multipart form. Sent again for a path and a method that exist, it replaces that endpoint. Without a file, the response is kept and only the settings change.</td>
           </tr>
           <tr>
             <td><code>GET /list</code></td>
-            <td>Every registered endpoint with its settings, as JSON.</td>
+            <td>Every registered endpoint with its id and its settings, as a JSON list.</td>
           </tr>
           <tr>
-            <td><code>GET /content/&lt;path&gt;</code></td>
-            <td>The response an endpoint holds. The path is URL-encoded, so <code>/api/hello</code> is <code>%2Fapi%2Fhello</code>.</td>
+            <td><code>GET /content/&lt;id&gt;</code></td>
+            <td>The response an endpoint holds. The URL-encoded path works in place of the id, so <code>/api/hello</code> is <code>%2Fapi%2Fhello</code>.</td>
           </tr>
           <tr>
-            <td><code>DELETE /delete/&lt;path&gt;</code></td>
-            <td>Removes an endpoint.</td>
+            <td><code>DELETE /delete/&lt;id&gt;</code></td>
+            <td>Removes an endpoint. With a URL-encoded path in place of the id, it removes every endpoint of that path.</td>
           </tr>
         </tbody>
       </table>
@@ -897,7 +897,6 @@ cd mockiapi
     <ul class="limits">
       <li><strong>Endpoints live in memory.</strong> When the server stops they are gone and have to be registered again.</li>
       <li><strong>Responses are JSON.</strong> The server always answers with <code>Content-Type: application/json</code>, and a response file can be 5 MB at most.</li>
-      <li><strong>One response per path.</strong> Every method an endpoint accepts gets the same body and status.</li>
       <li><strong>No state between calls.</strong> A <code>POST</code> does not change what a later <code>GET</code> answers.</li>
       <li><strong>gRPC is simulated.</strong> Calls are JSON over HTTP, not the gRPC wire protocol.</li>
       <li><strong>GraphQL is matched by operation name.</strong> Arguments, variables and fragments do not change the answer, and subscriptions are refused.</li>

@@ -1,4 +1,4 @@
-export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE'] as const;
+export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 export type HttpMethod = (typeof HTTP_METHODS)[number];
 
 export const ENDPOINT_KINDS = ['REST', 'GraphQL', 'gRPC'] as const;
@@ -18,9 +18,16 @@ export interface AuthData {
     tokenData: string | null;
 }
 
-/** An endpoint as `GET /list` describes it, with the path it is registered on. */
+/**
+ * An endpoint as `GET /list` describes it.
+ *
+ * A path can hold several, one for each set of methods, so the id is what tells them apart.
+ */
 export interface Endpoint {
+    id: number;
     path: string;
+    /** The label the list sorts it under, when it was given one. */
+    group: string | null;
     type: EndpointKind;
     method: string[];
     file: string;

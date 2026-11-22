@@ -4,6 +4,7 @@
     import EndpointEditor from './lib/EndpointEditor.svelte';
     import EndpointNav from './lib/EndpointNav.svelte';
     import TryIt from './lib/TryIt.svelte';
+    import { groupsOf } from './lib/grouping';
     import type { Endpoint, Notice, NoticeKind } from './lib/types';
 
     const NOTICE_LIFETIME_MS = 5000;
@@ -11,15 +12,16 @@
     const origin = window.location.origin;
 
     let endpoints = $state<Endpoint[]>([]);
-    /** The registered path of the endpoint open in the editor. `null` is a new endpoint. */
-    let selectedPath = $state<string | null>(null);
+    /** The id of the endpoint open in the editor. `null` is a new endpoint. */
+    let selectedId = $state<number | null>(null);
     /** Goes up after every save, so the editor and the panel start again from what the server holds. */
     let revision = $state(0);
     let loading = $state(false);
     let notices = $state<Notice[]>([]);
     let nextNoticeId = 0;
 
-    const selected = $derived(endpoints.find((endpoint) => endpoint.path === selectedPath) ?? null);
+    const selected = $derived(endpoints.find((endpoint) => endpoint.id === selectedId) ?? null);
+    const groups = $derived(groupsOf(endpoints));
 
     onMount(refresh);
 
@@ -60,26 +62,42 @@
     }
 
     async function save(form: FormData): Promise<boolean> {
-        const updating = selectedPath !== null;
+        const updating = selectedId !== null;
         const success = updating ? 'Endpoint saved successfully!' : 'Endpoint registered successfully!';
         const saved = await attempt(() => registerEndpoint(form), success);
 
         if (saved) {
             await refresh();
-            selectedPath = String(form.get('path'));
+            selectedId = savedBy(form)?.id ?? null;
             revision++;
         }
 
         return saved;
     }
 
-    async function remove(path: string) {
-        if (!confirm(`Are you sure you want to delete the endpoint "${path}"?`)) {
+    /**
+     * The endpoint a form that was just accepted ended up as.
+     *
+     * A path holds one endpoint per method, so the path and any method of the form name it.
+     */
+    function savedBy(form: FormData): Endpoint | undefined {
+        const path = String(form.get('path'));
+        const methods = String(form.get('methods')).split(',');
+
+        return endpoints.find(
+            (endpoint) => endpoint.path === path && endpoint.method.some((method) => methods.includes(method)),
+        );
+    }
+
+    async function remove(endpoint: Endpoint) {
+        const name = `${endpoint.method.join(', ')} ${endpoint.path}`;
+
+        if (!confirm(`Are you sure you want to delete the endpoint "${name}"?`)) {
             return;
         }
 
-        if (await attempt(() => deleteEndpoint(path), 'Endpoint deleted successfully!')) {
-            selectedPath = null;
+        if (await attempt(() => deleteEndpoint(endpoint.id), 'Endpoint deleted successfully!')) {
+            selectedId = null;
             await refresh();
         }
     }
@@ -91,7 +109,7 @@
             <span class="name">MockiAPI Dashboard</span>
             <span class="origin">{origin}</span>
         </div>
-        <button class="btn-primary" type="button" onclick={() => (selectedPath = null)}>New endpoint</button>
+        <button class="btn-primary" type="button" onclick={() => (selectedId = null)}>New endpoint</button>
     </header>
 
     <div class="notices" aria-live="polite">
@@ -101,12 +119,13 @@
     </div>
 
     <main>
-        <EndpointNav {endpoints} {selectedPath} {loading} onselect={(path) => (selectedPath = path)} />
+        <EndpointNav {endpoints} {selectedId} {loading} onselect={(id) => (selectedId = id)} />
 
         <!-- Each endpoint gets a fresh editor and a fresh panel, so nothing leaks between them. -->
-        {#key `${selected?.path ?? ''}#${revision}`}
+        {#key `${selected?.id ?? ''}#${revision}`}
             <EndpointEditor
                 endpoint={selected}
+                {groups}
                 onsave={save}
                 ondelete={remove}
                 oninvalid={(reason) => notify('error', reason)}

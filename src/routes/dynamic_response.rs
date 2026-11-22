@@ -34,12 +34,8 @@ async fn respond(
     endpoints: &Endpoints,
     grpc_registry: &GrpcRegistry,
 ) -> Result<Response<Body>, MockError> {
-    let route = endpoints.find(path, query).ok_or(MockError::NotFound)?;
+    let route = endpoints.find(path, query, &method)?;
     let endpoint = &route.endpoint;
-
-    if !endpoint.allows(&method) {
-        return Err(MockError::MethodNotAllowed);
-    }
 
     if let Some(expected) = &endpoint.authentication
         && !validate_auth(expected, auth_header)
