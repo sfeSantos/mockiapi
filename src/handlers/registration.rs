@@ -44,6 +44,8 @@ pub async fn register(
         }
     }
 
+    forget_grpc_mocks(&inserted.replaced, endpoints, grpc_registry);
+
     Ok(inserted.id)
 }
 
@@ -73,6 +75,23 @@ fn previous_registration(
         0 => Err(FILE_REQUIRED),
         1 => Ok(replaced.pop()),
         _ => Err(AMBIGUOUS_RESPONSE),
+    }
+}
+
+/// Takes out of the registry the mocks of gRPC endpoints that are no longer registered.
+///
+/// The registry is shared and answers by service and RPC, whatever path was called, so a
+/// mock left behind keeps answering. One that an endpoint still registered answers for
+/// stays: that covers an endpoint registered again for the same service and RPC.
+pub fn forget_grpc_mocks(removed: &[Arc<Route>], endpoints: &Endpoints, grpc_registry: &GrpcRegistry) {
+    for route in removed {
+        let Some((service, rpc)) = route.endpoint.grpc_target() else {
+            continue;
+        };
+
+        if !endpoints.answers_grpc(service, rpc) {
+            grpc_registry.remove_mock(service, rpc);
+        }
     }
 }
 

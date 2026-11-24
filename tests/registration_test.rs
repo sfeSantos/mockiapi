@@ -5,7 +5,7 @@ use warp::test::request;
 use warp::{Filter, Rejection, Reply};
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::models::Endpoints;
-use mockiapi::routes::admin_routes;
+use mockiapi::routes::{admin_routes, mock_routes};
 use mockiapi::routing::Route;
 use serde_json::Value;
 
@@ -161,6 +161,127 @@ async fn test_delete_removes_the_grpc_mocks_of_the_endpoint() {
     assert!(mock_before_delete.is_some());
     assert_eq!(deleted, StatusCode::OK);
     assert!(registry.get_mock("com.example.BookService", "GetBook").is_none());
+}
+
+/// The admin routes and the mocks they register, as the binary serves them together.
+fn admin_and_mocks(endpoints: Endpoints) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+    let registry = Arc::new(GrpcRegistry::new());
+
+    admin_routes(endpoints.clone(), Arc::clone(&registry)).or(mock_routes(endpoints, registry))
+}
+
+async fn register_grpc(
+    filter: &(impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone + 'static),
+    path: &str,
+    service: &str,
+    rpc: &str,
+) -> StatusCode {
+    let response = format!("{{\"from\":\"{path}\"}}");
+
+    register(
+        filter,
+        &[("path", path), ("methods", "POST"), ("grpcService", service), ("grpcRPC", rpc), ("file", &response)],
+    )
+    .await
+}
+
+/// Calls a gRPC mock through the path of an endpoint, and gives the status and the body.
+async fn call_grpc(
+    filter: &(impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone + 'static),
+    path: &str,
+    service: &str,
+    rpc: &str,
+) -> (StatusCode, String) {
+    let response = request()
+        .method("POST")
+        .path(path)
+        .body(format!("{{\"service\":\"{service}\",\"rpc\":\"{rpc}\",\"request\":{{}}}}"))
+        .reply(filter)
+        .await;
+
+    (response.status(), String::from_utf8_lossy(response.body()).into_owned())
+}
+
+const MOCK_NOT_FOUND: &str = "{\"error\":\"Mock not found\"}";
+
+#[tokio::test]
+async fn test_deleted_grpc_endpoint_stops_answering_while_another_one_is_registered() {
+    let filter = admin_and_mocks(new_endpoints());
+
+    register_grpc(&filter, "/grpc/books", "Books", "GetBook").await;
+    register_grpc(&filter, "/grpc/users", "Users", "GetUser").await;
+    let deleted = delete(&filter, "/grpc/books").await;
+
+    assert_eq!(deleted, StatusCode::OK);
+    assert_eq!(
+        call_grpc(&filter, "/grpc/users", "Books", "GetBook").await,
+        (StatusCode::NOT_FOUND, MOCK_NOT_FOUND.to_string())
+    );
+    assert_eq!(
+        call_grpc(&filter, "/grpc/users", "Users", "GetUser").await,
+        (StatusCode::OK, "{\"from\":\"/grpc/users\"}".to_string())
+    );
+
+    delete(&filter, "/grpc/users").await;
+}
+
+#[tokio::test]
+async fn test_grpc_endpoint_registered_again_for_another_rpc_stops_answering_the_previous_one() {
+    let endpoints = new_endpoints();
+    let filter = admin_and_mocks(endpoints.clone());
+
+    register_grpc(&filter, "/grpc/books", "Books", "GetBook").await;
+    register_grpc(&filter, "/grpc/users", "Users", "GetUser").await;
+    register_grpc(&filter, "/grpc/books", "Books", "ListBooks").await;
+
+    assert_eq!(endpoints.len(), 2);
+    assert_eq!(call_grpc(&filter, "/grpc/books", "Books", "GetBook").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(call_grpc(&filter, "/grpc/books", "Books", "ListBooks").await.0, StatusCode::OK);
+    assert_eq!(call_grpc(&filter, "/grpc/books", "Users", "GetUser").await.0, StatusCode::OK);
+
+    delete(&filter, "/grpc/books").await;
+    delete(&filter, "/grpc/users").await;
+}
+
+#[tokio::test]
+async fn test_grpc_endpoint_registered_again_for_the_same_rpc_answers_the_new_response() {
+    let filter = admin_and_mocks(new_endpoints());
+
+    register_grpc(&filter, "/grpc/books", "Books", "GetBook").await;
+    let registered_again = register(
+        &filter,
+        &[
+            ("path", "/grpc/books"),
+            ("methods", "POST"),
+            ("grpcService", "Books"),
+            ("grpcRPC", "GetBook"),
+            ("file", "{\"edition\":2}"),
+        ],
+    )
+    .await;
+
+    assert_eq!(registered_again, StatusCode::OK);
+    assert_eq!(
+        call_grpc(&filter, "/grpc/books", "Books", "GetBook").await,
+        (StatusCode::OK, "{\"edition\":2}".to_string())
+    );
+
+    delete(&filter, "/grpc/books").await;
+}
+
+#[tokio::test]
+async fn test_mock_shared_by_two_grpc_endpoints_goes_away_with_the_last_of_them() {
+    let filter = admin_and_mocks(new_endpoints());
+
+    register_grpc(&filter, "/grpc/first", "Books", "GetBook").await;
+    register_grpc(&filter, "/grpc/second", "Books", "GetBook").await;
+    delete(&filter, "/grpc/first").await;
+    let after_the_first = call_grpc(&filter, "/grpc/second", "Books", "GetBook").await.0;
+    delete(&filter, "/grpc/second").await;
+    let after_the_last = call_grpc(&filter, "/grpc/second", "Books", "GetBook").await.0;
+
+    assert_eq!(after_the_first, StatusCode::OK);
+    assert_eq!(after_the_last, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

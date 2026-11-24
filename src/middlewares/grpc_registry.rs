@@ -63,8 +63,18 @@ impl GrpcRegistry {
         mock
     }
 
-    pub fn clear(&self) {
-        self.write().clear();
+    /// Removes one mock. A service left with no method goes away with it.
+    pub fn remove_mock(&self, service: &str, method: &str) {
+        let mut services = self.write();
+        let Some(methods) = services.get_mut(service) else {
+            return;
+        };
+
+        methods.remove(method);
+
+        if methods.is_empty() {
+            services.remove(service);
+        }
     }
 
     // A poisoned lock only means another request panicked. The map itself is still valid.
@@ -74,5 +84,51 @@ impl GrpcRegistry {
 
     fn write(&self) -> RwLockWriteGuard<'_, Services> {
         self.services.write().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn registry_with(mocks: &[(&str, &str)]) -> GrpcRegistry {
+        let registry = GrpcRegistry::new();
+
+        for (service, method) in mocks {
+            registry.register_mock(service, method, GrpcMockResponse { output: json!({}), delay_ms: None, status: None });
+        }
+
+        registry
+    }
+
+    #[test]
+    fn removing_a_mock_leaves_the_others_of_its_service() {
+        let registry = registry_with(&[("Books", "GetBook"), ("Books", "ListBooks"), ("Users", "GetUser")]);
+
+        registry.remove_mock("Books", "GetBook");
+
+        assert!(registry.get_mock("Books", "GetBook").is_none());
+        assert!(registry.get_mock("Books", "ListBooks").is_some());
+        assert!(registry.get_mock("Users", "GetUser").is_some());
+    }
+
+    #[test]
+    fn service_goes_away_with_its_last_mock() {
+        let registry = registry_with(&[("Books", "GetBook")]);
+
+        registry.remove_mock("Books", "GetBook");
+
+        assert!(registry.read().is_empty());
+    }
+
+    #[test]
+    fn removing_a_mock_nobody_registered_does_nothing() {
+        let registry = registry_with(&[("Books", "GetBook")]);
+
+        registry.remove_mock("Books", "DeleteBook");
+        registry.remove_mock("Orders", "GetOrder");
+
+        assert!(registry.get_mock("Books", "GetBook").is_some());
     }
 }
