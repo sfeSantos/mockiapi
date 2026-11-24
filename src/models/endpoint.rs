@@ -23,8 +23,9 @@ pub enum MockBody {
     Raw(Bytes),
     /// GraphQL: the uploaded mock document, already parsed.
     GraphQl(Value),
-    /// gRPC: the answers live in the gRPC registry, keyed by service and method.
-    Grpc,
+    /// gRPC: the answers live in the gRPC registry, keyed by service and method. The two
+    /// names are kept here so the mock can be registered again after a restart.
+    Grpc { service: String, rpc: String },
 }
 
 impl MockBody {
@@ -32,7 +33,7 @@ impl MockBody {
         match self {
             MockBody::Raw(_) => EndpointKind::Rest,
             MockBody::GraphQl(_) => EndpointKind::GraphQl,
-            MockBody::Grpc => EndpointKind::Grpc,
+            MockBody::Grpc { .. } => EndpointKind::Grpc,
         }
     }
 }
@@ -78,7 +79,7 @@ fn serialize_kind<S: Serializer>(body: &MockBody, serializer: S) -> Result<S::Ok
     body.kind().serialize(serializer)
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct RateLimit {
     pub requests: usize,
     pub window_ms: u64,

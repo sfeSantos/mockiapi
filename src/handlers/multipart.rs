@@ -153,7 +153,9 @@ impl RegistrationForm {
                 let output = serde_json::from_slice(&upload).map_err(|_| INVALID_JSON_FILE)?;
                 let response = GrpcMockResponse { output, delay_ms: delay, status: Some(status_code) };
 
-                (MockBody::Grpc, Some(GrpcRegistration { service, rpc, response }))
+                let body = MockBody::Grpc { service: service.clone(), rpc: rpc.clone() };
+
+                (body, Some(GrpcRegistration { service, rpc, response }))
             }
             None if is_graphql => {
                 let document = serde_json::from_slice(&upload).map_err(|_| INVALID_JSON_FILE)?;

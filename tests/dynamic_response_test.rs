@@ -50,7 +50,7 @@ fn graphql_endpoint(file: &str) -> Endpoint {
 }
 
 fn grpc_endpoint() -> Endpoint {
-    endpoint(MockBody::Grpc, "POST")
+    endpoint(MockBody::Grpc { service: "UserService".to_string(), rpc: "GetUser".to_string() }, "POST")
 }
 
 /// Builds the same filter chain the server uses, so the tests see what a client sees.

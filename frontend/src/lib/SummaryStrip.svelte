@@ -39,6 +39,6 @@
                 {/each}
             </ul>
         {/if}
-        <p>Endpoints are kept in memory until the server stops.</p>
+        <p>Endpoints are saved as they change and restored at the next start.</p>
     </div>
 </section>

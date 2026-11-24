@@ -5,3 +5,9 @@ services:
     ports:
       - "3001:3001"
     restart: unless-stopped
+    # Where the endpoints and their responses are saved. Without it they go away with the container.
+    volumes:
+      - mockiapi-data:/app/uploads
+
+volumes:
+  mockiapi-data:

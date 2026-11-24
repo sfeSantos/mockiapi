@@ -10,12 +10,14 @@ pub const PORT_VARIABLE: &str = "PORT";
 pub const MOCKS_VARIABLE: &str = "MOCKS";
 
 pub const USAGE: &str = "\
-Usage: mockiapi [--port <PORT>] [--mocks <FILE>]
+Usage: mockiapi [--port <PORT>] [--mocks <FILE>] [--no-persist]
 
 Options:
   -p, --port <PORT>   Port to listen on. Defaults to the PORT environment variable, then 3001.
   -m, --mocks <FILE>  Endpoints to register at startup: a mockiapi file in JSON or YAML, or a
                       Postman collection. Defaults to the MOCKS environment variable.
+      --no-persist    Start empty and keep endpoints in memory only. The endpoints saved by
+                      an earlier run are neither loaded nor changed.
   -h, --help          Print this help.";
 
 /// What the command line asked for.
@@ -25,6 +27,8 @@ pub enum Command {
         port: u16,
         /// The file to register endpoints from before the server starts listening.
         mocks: Option<PathBuf>,
+        /// Whether endpoints are restored at startup and saved when they change.
+        persist: bool,
     },
     Help,
 }
@@ -79,6 +83,7 @@ pub fn parse(arguments: impl IntoIterator<Item = String>, environment: Environme
     let mut arguments = arguments.into_iter();
     let mut requested_port = None;
     let mut requested_mocks = None;
+    let mut persist = true;
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -89,6 +94,7 @@ pub fn parse(arguments: impl IntoIterator<Item = String>, environment: Environme
             "-m" | "--mocks" => {
                 requested_mocks = Some(arguments.next().ok_or(ConfigError::MissingMocksValue)?);
             }
+            "--no-persist" => persist = false,
             other => {
                 if let Some(value) = other.strip_prefix("--port=") {
                     requested_port = Some(value.to_string());
@@ -111,7 +117,7 @@ pub fn parse(arguments: impl IntoIterator<Item = String>, environment: Environme
         .filter(|value| !value.trim().is_empty())
         .map(PathBuf::from);
 
-    Ok(Command::Serve { port, mocks })
+    Ok(Command::Serve { port, mocks, persist })
 }
 
 fn parse_port(value: &str) -> Result<u16, ConfigError> {
@@ -148,11 +154,11 @@ mod tests {
     }
 
     fn serve(port: u16) -> Result<Command, ConfigError> {
-        Ok(Command::Serve { port, mocks: None })
+        Ok(Command::Serve { port, mocks: None, persist: true })
     }
 
     fn serve_with_mocks(file: &str) -> Result<Command, ConfigError> {
-        Ok(Command::Serve { port: DEFAULT_PORT, mocks: Some(PathBuf::from(file)) })
+        Ok(Command::Serve { port: DEFAULT_PORT, mocks: Some(PathBuf::from(file)), persist: true })
     }
 
     #[test]
@@ -176,13 +182,25 @@ mod tests {
     fn reads_the_port_and_the_mocks_file_together() {
         assert_eq!(
             parsed(&["--port", "8080", "--mocks", "mocks.yaml"], None),
-            Ok(Command::Serve { port: 8080, mocks: Some(PathBuf::from("mocks.yaml")) })
+            Ok(Command::Serve { port: 8080, mocks: Some(PathBuf::from("mocks.yaml")), persist: true })
         );
     }
 
     #[test]
     fn refuses_a_mocks_argument_without_a_value() {
         assert_eq!(parsed(&["--mocks"], None), Err(ConfigError::MissingMocksValue));
+    }
+
+    #[test]
+    fn endpoints_are_kept_unless_the_command_line_says_otherwise() {
+        assert_eq!(
+            parsed(&["--no-persist"], None),
+            Ok(Command::Serve { port: DEFAULT_PORT, mocks: None, persist: false })
+        );
+        assert_eq!(
+            parsed(&["--port", "8080", "--no-persist"], None),
+            Ok(Command::Serve { port: 8080, mocks: None, persist: false })
+        );
     }
 
     #[test]

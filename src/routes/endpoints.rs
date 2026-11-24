@@ -29,6 +29,7 @@ async fn register_form(
 ) -> Result<(), RegistrationError> {
     let form = RegistrationForm::read(form).await?;
     register(form, endpoints, grpc_registry).await?;
+    endpoints.save().await;
 
     Ok(())
 }
@@ -118,6 +119,8 @@ pub async fn delete_endpoint(
     if removed_grpc && !endpoints.has_kind(EndpointKind::Grpc) {
         grpc_registry.clear();
     }
+
+    endpoints.save().await;
 
     reply::with_status("Deleted successfully", StatusCode::OK)
 }

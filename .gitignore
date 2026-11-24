@@ -1,2 +1,5 @@
 /.idea
 /target
+# Written by the server when it is run from the repository.
+/uploads/endpoints.json
+/uploads/endpoints.json.tmp
