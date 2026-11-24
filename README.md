@@ -67,9 +67,15 @@ The script builds the dashboard into `frontend/dist`, builds the server with the
 
 ### With a release binary
 
-- [Linux (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-amd64)
-- [macOS (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64)
-- [Windows (amd64)](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64) (add the `.exe` extension after downloading)
+| System | Download |
+|---|---|
+| Linux, Intel or AMD | [mockiapi-linux-amd64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-amd64) |
+| Linux, ARM | [mockiapi-linux-arm64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-linux-arm64) |
+| macOS, Apple Silicon (M1 and later) | [mockiapi-macos-arm64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-arm64) |
+| macOS, Intel | [mockiapi-macos-amd64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-macos-amd64) |
+| Windows | [mockiapi-windows-amd64](https://github.com/sfeSantos/mockiapi/releases/latest/download/mockiapi-windows-amd64) (add the `.exe` extension after downloading) |
+
+The Linux ARM and macOS Intel binaries start with the release after 0.1.9. In 0.1.9 itself, `mockiapi-macos-amd64` is an Apple Silicon binary under the wrong name, so on an Intel Mac build [from source](#from-source) until the next release.
 
 ```bash
 chmod +x mockiapi-linux-amd64
@@ -103,7 +109,7 @@ The server prints:
 .: Server running at http://localhost:3001
 ```
 
-Open http://localhost:3001 in a browser. You should see the **MockiAPI Dashboard** in three columns: the list of endpoints, empty for now, the form for a new endpoint, and a **Try it** panel.
+Open http://localhost:3001 in a browser. You should see the **MockiAPI** dashboard. A strip at the top counts the endpoints, their groups, how many are protected and how many answer with a delay or under a rate limit. Below it are three columns: the list of endpoints, empty for now, the form for a new endpoint, and a **Try it** panel.
 
 The server creates an `uploads` directory in the directory it was started from. That is where it keeps a copy of each response file.
 
@@ -123,7 +129,7 @@ Create a file named `hello.json`:
 | HTTP Methods | GET |
 | Response (JSON File) | `hello.json` |
 
-Leave the other fields empty and click **Register**. The endpoint shows up in the list on the left and stays open in the form. In the **Try it** panel, click **Send** to call it from the browser and see the status, the time it took and the body.
+Leave the other fields empty and click **Register endpoint**, at the top of the form. The endpoint shows up in the list on the left and stays open in the form. In the **Try it** panel, click **Send** to call it from the browser and see the status, the time it took and the body.
 
 There is no need for a file if you would rather type: next to **Response**, switch from **File** to **Text** and paste the JSON into the box.
 
@@ -357,7 +363,7 @@ Create `graphql.json`:
 }
 ```
 
-**In the dashboard**, open the **GraphQL** tab, choose `graphql.json` and click **Register**. The path and method fields are hidden because they are fixed: the endpoint is always `POST /api/graphql`.
+**In the dashboard**, open the **GraphQL** tab, choose `graphql.json` and click **Register endpoint**. The path and method fields are hidden because they are fixed: the endpoint is always `POST /api/graphql`.
 
 **With curl:**
 
@@ -455,12 +461,12 @@ How it behaves:
 
 The dashboard lists every endpoint on the left, with its methods and its path. A path with one endpoint for `GET` and another for `POST` shows up twice. **Group by** splits the list by the group you gave each endpoint, or by HTTP method. Click an endpoint to open it:
 
-- The form shows its settings. Change the status code, the delay, the rate limit, the methods or the authentication and click **Save**.
-- The **Response** box shows what the endpoint answers now. Edit the text and click **Save**, and the next call gets the new response. **Format** indents it when it is valid JSON. To replace it with a file, switch to **File**.
+- The form shows its settings. Change the status code, the delay, the rate limit, the methods or the authentication and click **Save changes**.
+- The **Response** box shows what the endpoint answers now. Edit the text and click **Save changes**, and the next call gets the new response. **Format** indents it when it is valid JSON. To replace it with a file, switch to **File**.
 - The **Try it** panel calls the endpoint and shows what it answers. The path is editable, so you can fill in `{id}` segments and query parameters, and a POST or PUT request can carry a body. The same request is shown as a `curl` command.
 - **Delete** removes it.
 
-**New endpoint**, at the top, goes back to an empty form.
+**New endpoint**, at the top, goes back to an empty form. The search box above the list filters it by path or group, and the open endpoint is kept in the address of the page, so a reload comes back to it.
 
 A gRPC mock cannot be changed without a file: fill in the service and the method again and choose its response.
 
@@ -656,7 +662,7 @@ services:
 
 ### From the dashboard
 
-**Import**, at the top, takes the same three kinds of file and registers their endpoints on a running server. With curl:
+**Import file**, at the top, takes the same three kinds of file and registers their endpoints on a running server. With curl:
 
 ```bash
 curl -X POST http://localhost:3001/import -F file=@mocks.yaml
@@ -745,9 +751,9 @@ git tag v0.1.9
 git push origin v0.1.9
 ```
 
-The workflow then checks that the tag matches `Cargo.toml`, creates a GitHub release named after the tag with notes generated from the merged pull requests, attaches the Linux, macOS and Windows binaries to it, and publishes the crate to crates.io. The crate goes last, because a version published there cannot be replaced.
+The workflow then checks that the tag matches `Cargo.toml`, creates a GitHub release named after the tag with notes generated from the merged pull requests, attaches the binaries to it (Linux and macOS for both amd64 and arm64, Windows for amd64), and publishes the crate to crates.io. The crate goes last, because a version published there cannot be replaced.
 
-The same tag also builds the Docker image and pushes it to Docker Hub as `edufsantos/mockiapi:<version>` and `latest`. That is a workflow of its own, **Docker**, which can also be run by hand from the Actions tab to build the image of a tag that already exists.
+The same tag also builds the Docker image and pushes it to Docker Hub as `edufsantos/mockiapi:<version>` and `latest`, for `linux/amd64` and `linux/arm64`. Each platform is built on a runner of its own architecture and the two are gathered under the same tags. That is a workflow of its own, **Docker**, which can also be run by hand from the Actions tab to build the image of a tag that already exists.
 
 The repository secrets these need:
 

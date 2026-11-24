@@ -21,6 +21,7 @@
 
     const credentials = $derived(authorizationFor(endpoint?.authentication));
     const curl = $derived(trial ? curlFor(trial, window.location.origin) : '');
+    const responseBytes = $derived(result ? new TextEncoder().encode(result.body).length : 0);
 
     function toggleCredentials(event: Event & { currentTarget: HTMLInputElement }) {
         if (trial) {
@@ -89,9 +90,10 @@
             <div class="block-heading">
                 <span class="block-label">Response</span>
                 {#if result}
-                    <span class="status" class:status-error={result.status >= 400}>
-                        {result.status} {result.statusText} in {result.elapsedMs} ms
+                    <span class="status-pill" class:status-pill-error={result.status >= 400}>
+                        {result.status} {result.statusText}
                     </span>
+                    <span class="status-meta">{result.elapsedMs} ms · {responseBytes} bytes</span>
                 {/if}
             </div>
 
@@ -105,5 +107,6 @@
         </div>
     {:else}
         <p class="hint">Register the endpoint, then call it from here and see the real answer.</p>
+        <p class="hint">Or pick one from the list on the left.</p>
     {/if}
 </aside>

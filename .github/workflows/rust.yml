@@ -12,12 +12,42 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # One entry per binary a release carries. Each is built for an explicit target, so the
+  # architecture never depends on what the runner happens to be: macos-latest moved to
+  # Apple Silicon, and a build with no target quietly became arm64 under an amd64 name.
   build:
-    name: Build on ${{ matrix.os }}
+    name: Build ${{ matrix.asset }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - asset: mockiapi-linux-amd64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: mockiapi
+            architecture: x86-64
+          - asset: mockiapi-linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            binary: mockiapi
+            architecture: aarch64
+          - asset: mockiapi-macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            binary: mockiapi
+            architecture: arm64
+          # Built on the Apple Silicon runner. Its tests run under Rosetta.
+          - asset: mockiapi-macos-amd64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            binary: mockiapi
+            architecture: x86_64
+          - asset: mockiapi-windows-amd64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: mockiapi.exe
+            architecture: x86-64
 
     steps:
       - uses: actions/checkout@v3
@@ -32,15 +62,39 @@ jobs:
           npm ci
           npm run check
           npm run build
+      - name: Add the target
+        run: rustup target add ${{ matrix.target }}
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }}
+      # The name of an asset promises an architecture. This is what holds it to that.
+      - name: Check the architecture of the binary
+        shell: bash
+        env:
+          BINARY: target/${{ matrix.target }}/release/${{ matrix.binary }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          description=$(file "$BINARY")
+          echo "$description"
+
+          if ! echo "$description" | grep -q "$ARCHITECTURE"; then
+            echo "::error::${{ matrix.asset }} should be $ARCHITECTURE, but file says: $description"
+            exit 1
+          fi
       - name: Test
-        run: cargo test
+        run: cargo test --target ${{ matrix.target }}
       # Catches a crate that no longer packages, long before a tag tries to publish it.
       # frontend/dist is built, not committed, which cargo reports as uncommitted changes.
       - name: Check that the crate packages
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.asset == 'mockiapi-linux-amd64'
         run: cargo publish --dry-run --allow-dirty
+      # The release attaches this very file, so what is published is what was tested.
+      - name: Keep the binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary }}
+          if-no-files-found: error
+          retention-days: 3
 
   # Everything below runs only for a version tag. A push to main publishes nothing.
 
@@ -80,45 +134,31 @@ jobs:
               --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
           fi
 
+  # Attaches the binaries the build job made. Nothing is compiled again here.
   publish:
-    name: Publish for ${{ matrix.os }}
+    name: Attach the binaries to the release
     needs: [build, release]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            artifact_name: mockiapi
-            asset_name: mockiapi-linux-amd64
-          - os: windows-latest
-            artifact_name: mockiapi.exe
-            asset_name: mockiapi-windows-amd64
-          - os: macos-latest
-            artifact_name: mockiapi
-            asset_name: mockiapi-macos-amd64
-
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      # One directory per artifact, named after the asset, holding the binary.
+      - uses: actions/download-artifact@v4
         with:
-          node-version: '20'
-      # The dashboard is embedded in the binary, so it has to exist before cargo runs.
-      - name: Build the dashboard
-        working-directory: frontend
+          path: artifacts
+      - name: Upload the binaries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm ci
-          npm run build
-      - name: Build Rust backend
-        run: cargo build --release
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          tag: ${{ github.ref }}
+          mkdir assets
+
+          for directory in artifacts/mockiapi-*; do
+            cp "$directory"/mockiapi* "assets/$(basename "$directory")"
+          done
+
+          ls -l assets
+          gh release upload "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" --clobber
 
   # Last on purpose: a version on crates.io cannot be replaced, so it only goes out once
   # the binaries are attached to the release.
