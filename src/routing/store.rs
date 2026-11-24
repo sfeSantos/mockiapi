@@ -5,7 +5,7 @@ use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Serialize, Serializer};
 use warp::http::Method;
 use crate::middlewares::rate_limit::RateLimiter;
-use crate::models::{Endpoint, EndpointKind};
+use crate::models::Endpoint;
 use crate::persistence::{self, EndpointsFile};
 use crate::routing::pattern::{split_path_and_query, RoutePattern};
 
@@ -308,10 +308,11 @@ impl Endpoints {
         self.write().remove_path(path)
     }
 
-    pub fn has_kind(&self, kind: EndpointKind) -> bool {
+    /// Whether a registered gRPC endpoint answers this service and RPC.
+    pub fn answers_grpc(&self, service: &str, rpc: &str) -> bool {
         self.read()
             .iter()
-            .any(|route| route.endpoint.kind() == kind)
+            .any(|route| route.endpoint.grpc_target() == Some((service, rpc)))
     }
 
     pub fn len(&self) -> usize {

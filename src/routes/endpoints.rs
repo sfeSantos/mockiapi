@@ -4,9 +4,9 @@ use warp::http::StatusCode;
 use warp::multipart::FormData;
 use warp::{reply, Reply};
 use crate::handlers::multipart::RegistrationForm;
-use crate::handlers::registration::{register, remove_upload};
+use crate::handlers::registration::{forget_grpc_mocks, register, remove_upload};
 use crate::middlewares::grpc_registry::GrpcRegistry;
-use crate::models::{EndpointKind, Endpoints, RegistrationError};
+use crate::models::{Endpoints, RegistrationError};
 use crate::routing::Route;
 use crate::utils::{json_response, text_response};
 
@@ -111,15 +111,7 @@ pub async fn delete_endpoint(
         remove_upload(&route.endpoint.file).await;
     }
 
-    let removed_grpc = removed
-        .iter()
-        .any(|route| route.endpoint.kind() == EndpointKind::Grpc);
-
-    // The registry is shared by every gRPC endpoint, so its mocks go away with the last one.
-    if removed_grpc && !endpoints.has_kind(EndpointKind::Grpc) {
-        grpc_registry.clear();
-    }
-
+    forget_grpc_mocks(&removed, &endpoints, &grpc_registry);
     endpoints.save().await;
 
     reply::with_status("Deleted successfully", StatusCode::OK)

@@ -61,6 +61,14 @@ impl Endpoint {
         self.body.kind()
     }
 
+    /// The service and the RPC a gRPC endpoint answers for.
+    pub fn grpc_target(&self) -> Option<(&str, &str)> {
+        match &self.body {
+            MockBody::Grpc { service, rpc } => Some((service, rpc)),
+            MockBody::Raw(_) | MockBody::GraphQl(_) => None,
+        }
+    }
+
     pub fn allows(&self, method: &Method) -> bool {
         self.method
             .iter()
