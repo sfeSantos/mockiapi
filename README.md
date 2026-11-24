@@ -23,7 +23,7 @@ What an endpoint can do:
 
 Two things to know before you start:
 
-- Endpoints are kept in memory. When the server stops, they are gone, unless they come from a [mocks file](#9-start-with-your-mocks-already-loaded) that is loaded again at the next start.
+- Endpoints are saved as you register them and [come back after a restart](#10-keep-your-endpoints-across-restarts). They can also be written in a [mocks file](#9-start-with-your-mocks-already-loaded) that is loaded at every start.
 - The response file must be JSON. The server always answers with `Content-Type: application/json`.
 
 ## Contents
@@ -37,7 +37,8 @@ Two things to know before you start:
 7. [Mock a gRPC call](#7-mock-a-grpc-call)
 8. [List, change and delete endpoints](#8-list-change-and-delete-endpoints)
 9. [Start with your mocks already loaded](#9-start-with-your-mocks-already-loaded)
-10. [Reference](#reference)
+10. [Keep your endpoints across restarts](#10-keep-your-endpoints-across-restarts)
+11. [Reference](#reference)
 
 ## 1. Start the server
 
@@ -111,7 +112,7 @@ The server prints:
 
 Open http://localhost:3001 in a browser. You should see the **MockiAPI** dashboard. A strip at the top counts the endpoints, their groups, how many are protected and how many answer with a delay or under a rate limit. Below it are three columns: the list of endpoints, empty for now, the form for a new endpoint, and a **Try it** panel.
 
-The server creates an `uploads` directory in the directory it was started from. That is where it keeps a copy of each response file.
+The server creates an `uploads` directory in the directory it was started from. That is where it keeps a copy of each response file, and the list of endpoints that lets it [bring them back after a restart](#10-keep-your-endpoints-across-restarts).
 
 ## 2. Register your first endpoint
 
@@ -611,7 +612,7 @@ error: could not load mocks.yaml: endpoint 2 (/api/users): the response file res
 
 The same goes for a field it does not know, which is usually a typo, and for two endpoints of the file that answer the same method on the same path.
 
-Endpoints that came from a file are like any other afterwards: they are listed, and they can be changed and deleted in the dashboard or over HTTP. Those changes are kept in memory and are not written back to the file. The server works on copies in `uploads`, so it never changes or deletes your files.
+Endpoints that came from a file are like any other afterwards: they are listed, and they can be changed and deleted in the dashboard or over HTTP. Those changes are not written back to the file, and the file is registered again at the next start: see [together with a mocks file](#together-with-a-mocks-file). The server works on copies in `uploads`, so it never changes or deletes your files.
 
 ### A Postman collection
 
@@ -675,6 +676,64 @@ curl -X POST http://localhost:3001/import -F file=@mocks.yaml
 The name of the file tells YAML from JSON. An imported endpoint replaces the ones it overlaps, by the same rule as a registration, and the others stay. The file is taken whole or not at all: a refusal answers `400` with the reason.
 
 An uploaded file has no directory of its own, so `file:` does not work in it. Write every response in `body`.
+
+## 10. Keep your endpoints across restarts
+
+Nothing to set up: every endpoint you register, change or delete is saved, and the server brings them back the next time it starts, each with the id it had.
+
+```
+.: Restored 3 endpoints from uploads/endpoints.json
+.: Server running at http://localhost:3001
+```
+
+The settings of the endpoints are in `uploads/endpoints.json`, and each response is in its own file in the same directory. `uploads` is created in the directory the server was started from, so start it from the same place to find the same endpoints. The file is plain JSON with the fields `GET /list` shows. It is written when an endpoint changes and read once at startup, never while a mock is being served.
+
+Good to know:
+
+- The credentials of a protected endpoint are saved as plain text. They are mock credentials, but do not reuse a real password or token there.
+- An endpoint whose response file is missing is skipped with a warning, and the others are restored:
+
+  ```
+  warning: skipped a saved endpoint: GET /api/hello: the response file uploads/1f0c.json could not be read: No such file or directory (os error 2)
+  ```
+
+- If `endpoints.json` itself cannot be read, because it was edited by hand into something that is not valid or was written by a newer version, the server stops and says why. It does not start empty, since the next change would write over the file.
+- Rate limit counters are not saved. Every limit starts fresh.
+
+### Start empty
+
+`--no-persist` starts with no endpoints and keeps the new ones in memory only. What an earlier run saved is not loaded and not touched, so it is back at the next start without the flag.
+
+```bash
+./mockiapi-linux-amd64 --no-persist
+```
+
+### Together with a mocks file
+
+With `--mocks`, the saved endpoints are restored first and the file is registered over them. Where both answer the same method of the same path, the file wins at every start, so a change made in the dashboard to an endpoint that came from the file lasts until the next restart. Endpoints the file does not mention are kept as they were saved.
+
+### With Docker
+
+A container has its own file system, so the endpoints go away with it unless `/app/uploads` is a volume:
+
+```bash
+docker run -p 3001:3001 -v mockiapi-data:/app/uploads edufsantos/mockiapi
+```
+
+The `docker-compose.yml` of this repository already does that:
+
+```yaml
+services:
+  mockiapi:
+    image: edufsantos/mockiapi
+    ports:
+      - "3001:3001"
+    volumes:
+      - mockiapi-data:/app/uploads
+
+volumes:
+  mockiapi-data:
+```
 
 ## Reference
 

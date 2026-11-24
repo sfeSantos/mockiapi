@@ -63,6 +63,6 @@ async fn respond(
             graphql::respond(endpoint.status(), mock, body)
         }
         // A gRPC mock carries its own delay, which the gRPC handler applies.
-        MockBody::Grpc => grpc::respond(body, grpc_registry).await,
+        MockBody::Grpc { .. } => grpc::respond(body, grpc_registry).await,
     }
 }

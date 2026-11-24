@@ -1,10 +1,12 @@
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Serialize, Serializer};
 use warp::http::Method;
 use crate::middlewares::rate_limit::RateLimiter;
 use crate::models::{Endpoint, EndpointKind};
+use crate::persistence::{self, EndpointsFile};
 use crate::routing::pattern::{split_path_and_query, RoutePattern};
 
 /// A registered endpoint together with the pattern requests are matched against.
@@ -67,6 +69,9 @@ impl EndpointStore {
     /// of the same path that shares a method with it. Registrations of that path for other
     /// methods stay. The new one keeps the id of `target`, or of the registration it
     /// replaced when there was exactly one.
+    ///
+    /// `target` does not have to exist: an endpoint restored from disk is given back the id
+    /// it had, and no later registration is handed that id again.
     pub fn insert(&mut self, path: String, endpoint: Endpoint, target: Option<u64>) -> Inserted {
         let mut replaced_ids: Vec<u64> = self.overlapping(&path, &endpoint.method)
             .map(|route| route.id)
@@ -81,7 +86,11 @@ impl EndpointStore {
             .filter_map(|id| self.remove(*id))
             .collect();
         let id = match (target, replaced.as_slice()) {
-            (Some(target), _) => target,
+            (Some(target), _) => {
+                self.last_id = self.last_id.max(target);
+
+                target
+            }
             (None, [only]) => only.id,
             (None, _) => self.next_id(),
         };
@@ -230,9 +239,36 @@ fn first_allowing<'store>(
 #[derive(Debug, Clone, Default)]
 pub struct Endpoints {
     store: Arc<RwLock<EndpointStore>>,
+    /// Where the endpoints are saved. Without it they live in memory only.
+    saved: Option<Arc<EndpointsFile>>,
 }
 
 impl Endpoints {
+    /// An empty store whose endpoints are written to `file` by [`Endpoints::save`].
+    ///
+    /// What the file already holds is not read here: see [`persistence::restore`].
+    pub fn saved_in(file: impl Into<PathBuf>) -> Self {
+        Self { store: Arc::default(), saved: Some(Arc::new(EndpointsFile::new(file))) }
+    }
+
+    pub fn saved_file(&self) -> Option<&EndpointsFile> {
+        self.saved.as_deref()
+    }
+
+    /// Writes the endpoints to their file, after a change to what is registered.
+    ///
+    /// A store that lives in memory only does nothing. A write that fails is logged and the
+    /// change stays valid in memory: the endpoint was registered, it is just not saved yet.
+    pub async fn save(&self) {
+        let Some(file) = &self.saved else {
+            return;
+        };
+
+        if let Err(error) = file.write(|| persistence::snapshot(self.read().iter())).await {
+            log::error!("the endpoints could not be saved to {}: {error}", file.path().display());
+        }
+    }
+
     /// Resolves a request to the most specific route that accepts its path, query and method.
     pub fn find(&self, path: &str, query: &str, method: &Method) -> Result<Arc<Route>, Miss> {
         self.read().find(path, query, method)
@@ -496,6 +532,19 @@ mod tests {
         let second = store.insert("/second".to_string(), endpoint("second", &["GET"]), None).id;
 
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn id_given_back_to_a_restored_endpoint_is_not_handed_out_again() {
+        let mut store = EndpointStore::default();
+
+        let restored = store.insert("/restored".to_string(), endpoint("restored", &["GET"]), Some(7));
+        let earlier = store.insert("/earlier".to_string(), endpoint("earlier", &["GET"]), Some(3));
+        let next = store.insert("/next".to_string(), endpoint("next", &["GET"]), None);
+
+        assert_eq!(restored.id, 7);
+        assert_eq!(earlier.id, 3);
+        assert_eq!(next.id, 8);
     }
 
     #[test]

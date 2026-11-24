@@ -24,7 +24,12 @@ pub async fn import_mocks(
         return reply::with_status(reply::json(&MISSING_FILE), StatusCode::BAD_REQUEST);
     };
 
-    match mocks::import(&content, syntax, &endpoints, &grpc_registry).await {
+    let imported = mocks::import(&content, syntax, &endpoints, &grpc_registry).await;
+    // Also after a refusal: a file is checked whole before anything is stored, but a disk
+    // that fails halfway can still leave some of its endpoints registered.
+    endpoints.save().await;
+
+    match imported {
         Ok(loaded) => reply::with_status(reply::json(&loaded), StatusCode::OK),
         Err(error) => reply::with_status(reply::json(&error.to_string()), StatusCode::BAD_REQUEST),
     }

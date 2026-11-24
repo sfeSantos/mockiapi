@@ -8,13 +8,14 @@ use mockiapi::config::{self, Command, Environment, USAGE};
 use mockiapi::handlers::multipart::UPLOADS_DIR;
 use mockiapi::middlewares::grpc_registry::GrpcRegistry;
 use mockiapi::mocks;
+use mockiapi::persistence::{self, ENDPOINTS_FILE};
 use mockiapi::models::Endpoints;
 use mockiapi::routes::{admin_routes, dashboard_routes, mock_routes};
 
 #[tokio::main]
 async fn main() {
-    let (port, mocks_file) = match config::parse(std::env::args().skip(1), Environment::read()) {
-        Ok(Command::Serve { port, mocks }) => (port, mocks),
+    let (port, mocks_file, persist) = match config::parse(std::env::args().skip(1), Environment::read()) {
+        Ok(Command::Serve { port, mocks, persist }) => (port, mocks, persist),
         Ok(Command::Help) => {
             println!("{USAGE}");
             return;
@@ -32,12 +33,16 @@ async fn main() {
         .await
         .expect("the uploads directory could not be created");
 
-    let endpoints = Endpoints::default();
+    let endpoints = if persist { Endpoints::saved_in(ENDPOINTS_FILE) } else { Endpoints::default() };
     let registry = Arc::new(GrpcRegistry::new());
 
     // Before the port is opened, so the first request already finds the endpoints.
+    restore_endpoints(&endpoints, &registry).await;
+
+    // After the saved endpoints, so the file wins where both answer a method of a path.
     if let Some(file) = mocks_file {
         load_mocks(&file, &endpoints, &registry).await;
+        endpoints.save().await;
     }
 
     let log = warp::log::custom(|info| {
@@ -74,6 +79,27 @@ async fn main() {
 
     println!(".: Server running at http://localhost:{port}");
     server.await;
+}
+
+/// Registers the endpoints an earlier run saved, or stops the process when their file cannot
+/// be read: starting empty would write over it at the next change.
+async fn restore_endpoints(endpoints: &Endpoints, registry: &GrpcRegistry) {
+    match persistence::restore(endpoints, registry).await {
+        Ok(restored) => {
+            for skipped in &restored.skipped {
+                eprintln!("warning: skipped a saved endpoint: {skipped}");
+            }
+
+            if restored.loaded > 0 {
+                println!(".: Restored {} endpoints from {ENDPOINTS_FILE}", restored.loaded);
+            }
+        }
+        Err(error) => {
+            eprintln!("error: could not restore the endpoints saved in {ENDPOINTS_FILE}: {error}");
+            eprintln!("Fix or remove the file, or start without it with --no-persist.");
+            exit(1);
+        }
+    }
 }
 
 /// Registers the endpoints of the mocks file, or stops the process when it cannot be loaded:
